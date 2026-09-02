@@ -1,15 +1,33 @@
 # 90 Gündem — ViralFutbol Otomasyonu
 
-Anlık Türk futbol haberlerini tarar, en az iki bağımsız yayıncıyla doğrular, tekrarları engeller ve doğrulanmış haberi MoneyPrinterTurbo'ya 9:16 YouTube Shorts görevi olarak gönderir.
+Anlık Türkçe ve global futbol haberlerini tarar, en az iki bağımsız yayıncıyla doğrular, tekrarları engeller ve doğrulanmış haberleri MoneyPrinterTurbo'ya 9:16 YouTube Shorts görevleri olarak gönderir.
 
 ## Akış
 
-1. Google News RSS sorguları taranır.
-2. Son 90 dakikadaki benzer başlıklar gruplanır.
-3. En az iki bağımsız kaynak şartı uygulanır.
-4. Daha önce işlenen haberler SQLite ile elenir.
-5. Türkçe, 30–45 saniyelik Shorts görevi MoneyPrinterTurbo API'sine gönderilir.
-6. MoneyPrinterTurbo tamamlanan videoyu YouTube'a yükler.
+1. Türkiye akışı Google News TR üzerinden Süper Lig ve Türkiye futbolunu tarar.
+2. Global akış Google News US/English üzerinden dünya futbolu, transferler, Premier League, Champions League, Real Madrid ve Barcelona gündemini tarar.
+3. Son 90 dakikadaki benzer başlıklar gruplanır.
+4. En az iki bağımsız yayıncı şartı uygulanır.
+5. Türkçe ve İngilizce sürümler dil bazında ayrı ayrı tekrar kontrolünden geçirilir.
+6. Her pazar için birebir çeviri olmayan, özgün kanca ve editoryal açıklama içeren 30–40 saniyelik bir senaryo üretilir.
+7. MoneyPrinterTurbo; dile özel ses, altyazı ve İngilizce materyal arama terimleriyle Full HD Shorts videosunu üretir.
+
+## Dil profilleri
+
+- `tr`: Türkiye kaynakları, `tr-TR-AhmetNeural-Male` ses ve Türkçe altyazı.
+- `en`: İngilizce global kaynaklar, `en-US-GuyNeural-Male` ses ve İngilizce altyazı.
+- Varsayılan `NEWS_LANGUAGES=tr,en` değeridir. Tek dil için `tr` veya `en` kullanılabilir.
+
+İngilizce akış yalnızca Türkçe metni çevirmemelidir. Global izleyici için ayrı başlık, doğal İngilizce anlatım, farklı arama kelimeleri ve habere özgü değer üretmelidir. Bu, kanalın seri üretilmiş veya birbirinin kopyası içerik gibi görünme riskini azaltır.
+
+## Hızlı ve kaliteli video profili
+
+- Çıktı: dikey 9:16 Full HD.
+- Hedef süre: 30–40 saniye.
+- Klip süresi: varsayılan 5 saniye; yaklaşık 6–9 klip.
+- Kaynak eşleştirme: senaryo sırasına göre.
+- Ses hızı: doğal kalacak şekilde `1.03x`.
+- Müzik seviyesi: etkinleştirildiğinde `0.10`.
 
 ## Hızlı başlangıç
 
@@ -19,12 +37,18 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-İlk kontrolde `NEWS_DRY_RUN=true` kullanın. Gerçek üretim için `false` yapın.
+İlk kontrolde `NEWS_DRY_RUN=true` kullanın. Gerçek üretim için yalnızca uçtan uca kontrol tamamlandıktan sonra `false` yapın.
+
+## Telifsiz müzik güvenlik kuralı
+
+Arka plan müziği varsayılan olarak kapalıdır. MoneyPrinterTurbo'nun isimsiz hazır parçaları otomatik yayında kullanılmaz. YouTube Studio Ses Kitaplığı'ndan indirilen, **Atıf gerekmiyor** olarak işaretli dosyalar `storage/bgm` dizinine eklendikten ve kaynak/lisans kaydı saklandıktan sonra `NEWS_BGM_TYPE=random` yapılmalıdır.
 
 ## YouTube yayını
 
-MoneyPrinterTurbo tarafında Upload-Post veya doğrudan YouTube yayın sağlayıcısı yapılandırılmalıdır. İlk gerçek testte private/unlisted önerilir; proje ayarı public yapılabilir. API anahtarları, OAuth dosyaları ve tokenlar GitHub'a yüklenmemelidir.
+Türkçe ve İngilizce sürümler için ayrı kanal profili önerilir; böylece başlık, altyazı, ses ve görsel kurgu izleyiciye tamamen yerelleştirilebilir. YouTube çok dilli ses özelliği etkin olan kanallarda aynı Short'a ikinci ses parçası da eklenebilir, ancak bu özellik kanal erişimine bağlıdır.
 
-## Telif ve doğruluk
+MoneyPrinterTurbo tarafında Upload-Post veya doğrudan YouTube OAuth yayın sağlayıcısı yapılandırılmalıdır. İlk gerçek testte private/unlisted önerilir. API anahtarları, OAuth dosyaları ve tokenlar GitHub'a yüklenmemelidir.
 
-Sistem maç yayını kliplerini çekmez. Pexels/izinli medya, özgün grafik veya lisanslı içerik kullanılmalıdır. Kaynak eşleşmesi otomatik hata riskini azaltır ancak editoryal ve telif sorumluluğunu ortadan kaldırmaz.
+## Para kazanma, telif ve doğruluk
+
+Sistem maç yayını kliplerini çekmez. Pexels/izinli medya, özgün grafik veya lisanslı içerik kullanılmalıdır. Sistem yalnızca haber metnini okumamalı; doğrulanmış kaynaklardan özgün açıklama ve anlamlı kurgu üretmelidir. Otomatik kaynak eşleşmesi editoryal ve telif sorumluluğunu ortadan kaldırmaz.
