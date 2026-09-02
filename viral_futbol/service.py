@@ -1,0 +1,190 @@
+from __future__ import annotations
+
+import hashlib
+import html
+import json
+import re
+import sqlite3
+import time
+import urllib.parse
+import urllib.request
+import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from difflib import SequenceMatcher
+from email.utils import parsedate_to_datetime
+from pathlib import Path
+from urllib.parse import urlparse
+
+from .config import Settings
+
+
+@dataclass(frozen=True)
+class Story:
+    title: str
+    url: str
+    publisher: str
+    published: datetime
+
+
+def _clean_title(value: str) -> str:
+    value = html.unescape(value)
+    value = re.sub(r"\s+-\s+[^-]{2,50}$", "", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _tokens(value: str) -> set[str]:
+    normalized = value.casefold().replace("ı", "i")
+    return set(re.findall(r"[a-zçğıöşü0-9]{3,}", normalized))
+
+
+def title_similarity(left: str, right: str) -> float:
+    a, b = _tokens(left), _tokens(right)
+    jaccard = len(a & b) / max(1, len(a | b))
+    sequence = SequenceMatcher(None, left.casefold(), right.casefold()).ratio()
+    return max(jaccard, sequence)
+
+
+def publisher_family(value: str) -> str:
+    """Collapse sibling labels such as 'NTV Haber' and 'NTVSpor'."""
+    normalized = re.sub(r"[^a-zçğıöşü0-9]", "", value.casefold().replace("ı", "i"))
+    noise = ("haberleri", "gazetesi", "haber", "spor", "tv", "comtr", "com")
+    for suffix in noise:
+        if normalized.endswith(suffix) and len(normalized) > len(suffix) + 2:
+            normalized = normalized[: -len(suffix)]
+            break
+    return normalized
+
+
+def fetch_google_news(query: str, timeout: int = 20) -> list[Story]:
+    encoded = urllib.parse.quote_plus(query)
+    url = f"https://news.google.com/rss/search?q={encoded}&hl=tr&gl=TR&ceid=TR:tr"
+    request = urllib.request.Request(url, headers={"User-Agent": "ViralFutbol/1.0"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        root = ET.fromstring(response.read())
+    stories: list[Story] = []
+    for item in root.findall("./channel/item"):
+        title = _clean_title(item.findtext("title") or "")
+        link = (item.findtext("link") or "").strip()
+        source = item.find("source")
+        publisher = (source.text or "").strip() if source is not None else urlparse(link).netloc
+        try:
+            published = parsedate_to_datetime(item.findtext("pubDate") or "").astimezone(timezone.utc)
+        except (TypeError, ValueError):
+            continue
+        if title and link and publisher:
+            stories.append(Story(title, link, publisher, published))
+    return stories
+
+
+def verified_clusters(stories: list[Story], settings: Settings) -> list[list[Story]]:
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=settings.max_age_minutes)
+    recent = [s for s in stories if s.published >= cutoff]
+    clusters: list[list[Story]] = []
+    for story in sorted(recent, key=lambda x: x.published, reverse=True):
+        for cluster in clusters:
+            if title_similarity(story.title, cluster[0].title) >= settings.similarity:
+                cluster.append(story)
+                break
+        else:
+            clusters.append([story])
+    return [
+        c for c in clusters
+        if len({publisher_family(s.publisher) for s in c}) >= settings.min_sources
+    ]
+
+
+class Store:
+    def __init__(self, filename: str):
+        Path(filename).parent.mkdir(parents=True, exist_ok=True)
+        self.db = sqlite3.connect(filename)
+        self.db.execute("CREATE TABLE IF NOT EXISTS published (story_id TEXT PRIMARY KEY, task_id TEXT, created_at TEXT)")
+        self.db.commit()
+
+    @staticmethod
+    def story_id(cluster: list[Story]) -> str:
+        canonical = " ".join(sorted(_tokens(cluster[0].title)))
+        return hashlib.sha256(canonical.encode()).hexdigest()[:24]
+
+    def contains(self, story_id: str) -> bool:
+        return self.db.execute("SELECT 1 FROM published WHERE story_id=?", (story_id,)).fetchone() is not None
+
+    def save(self, story_id: str, task_id: str) -> None:
+        self.db.execute("INSERT OR IGNORE INTO published VALUES (?, ?, ?)", (story_id, task_id, datetime.now(timezone.utc).isoformat()))
+        self.db.commit()
+
+
+def build_payload(cluster: list[Story], settings: Settings) -> dict:
+    facts = "\n".join(f"- {s.publisher}: {s.title}" for s in cluster[:5])
+    sources = "\n".join(f"- {s.publisher}: {s.url}" for s in cluster[:5])
+    prompt = f"""Aşağıdaki doğrulanmış futbol haberinden 30-45 saniyelik Türkçe YouTube Shorts metni yaz.
+Yalnızca verilen başlıklardaki ortak gerçekleri kullan; tahmin, uydurma alıntı ve kesinleşmemiş rakam ekleme.
+İlk cümle güçlü ama yanıltıcı olmayan bir kanca olsun. Son cümlede kısa bir soru sor.
+Metinde kaynak URL'lerini okuma. 90-120 kelimeyi aşma.
+
+Haber kayıtları:
+{facts}
+
+Kaynaklar (açıklama metadatası için):
+{sources}"""
+    return {
+        "video_subject": cluster[0].title,
+        "video_script_prompt": prompt,
+        "custom_system_prompt": "Sen doğruluğu hızdan önemli gören deneyimli bir Türk futbol haber editörüsün.",
+        "video_aspect": "9:16",
+        "video_language": "tr",
+        "voice_name": settings.voice_name,
+        "video_source": settings.video_source,
+        "match_materials_to_script": True,
+        "subtitle_enabled": True,
+        "subtitle_position": "center",
+        "font_size": 70,
+        "stroke_width": 2.5,
+        "video_count": 1,
+    }
+
+
+def submit(payload: dict, settings: Settings) -> str:
+    if settings.dry_run:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return "dry-run"
+    body = json.dumps(payload).encode()
+    headers = {"Content-Type": "application/json"}
+    if settings.mpt_api_key:
+        headers["Authorization"] = f"Bearer {settings.mpt_api_key}"
+    request = urllib.request.Request(f"{settings.mpt_url.rstrip('/')}/videos", data=body, headers=headers, method="POST")
+    with urllib.request.urlopen(request, timeout=30) as response:
+        result = json.loads(response.read())
+    data = result.get("data") or result
+    return str(data.get("task_id") or data.get("id") or "submitted")
+
+
+def run_once(settings: Settings) -> int:
+    stories: list[Story] = []
+    for query in settings.queries:
+        stories.extend(fetch_google_news(query))
+    store = Store(settings.db_path)
+    submitted = 0
+    for cluster in verified_clusters(stories, settings):
+        story_id = store.story_id(cluster)
+        if store.contains(story_id):
+            continue
+        task_id = submit(build_payload(cluster, settings), settings)
+        store.save(story_id, task_id)
+        submitted += 1
+    return submitted
+
+
+def main() -> None:
+    settings = Settings()
+    while True:
+        try:
+            count = run_once(settings)
+            print(f"ViralFutbol: {count} yeni doğrulanmış haber gönderildi.")
+        except Exception as exc:
+            print(f"ViralFutbol hata: {exc}")
+        time.sleep(max(60, settings.poll_seconds))
+
+
+if __name__ == "__main__":
+    main()
