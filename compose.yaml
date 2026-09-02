@@ -1,0 +1,12 @@
+services:
+  news-worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - viral-futbol-data:/data
+
+volumes:
+  viral-futbol-data:
