@@ -27,6 +27,11 @@ MoneyPrinterTurbo anahtarı `x-api-key` başlığında gönderilir. Render üzer
 `NEWS_DB_PATH=/data/viral_futbol.sqlite3` kullanılıyorsa `/data` kalıcı diske
 bağlanmalıdır; aksi halde Render yeniden başlatıldığında haber geçmişi kaybolur.
 
+Ücretsiz Render planında kalıcı disk yoksa güvenlik ağı yine çalışır: ViralFutbol
+her haber için sabit bir `Idempotency-Key` gönderir ve MoneyPrinterTurbo bu anahtarı
+Google Drive'daki dayanıklı görev kaydıyla eşler. Render yanıtı kaçırsa veya yerel
+SQLite sıfırlansa bile aynı haber mevcut göreve bağlanır; ikinci video başlatılmaz.
+
 ## Dil profilleri
 
 - `tr`: Türkiye kaynakları, `tr-TR-AhmetNeural-Male` ses ve Türkçe altyazı.

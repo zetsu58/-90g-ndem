@@ -60,8 +60,17 @@ def start_scan() -> bool:
 
 def public_status() -> dict:
     status = dict(_state)
+    settings = Settings()
+    status["configuration"] = {
+        "dry_run": settings.dry_run,
+        "languages": list(settings.languages),
+        "mpt_url_configured": bool(settings.mpt_url.strip()),
+        "mpt_api_key_configured": bool(settings.mpt_api_key.strip()),
+        "max_inflight_tasks": settings.max_inflight_tasks,
+        "idempotency": "remote-drive-backed",
+    }
     try:
-        with Store(Settings().db_path) as store:
+        with Store(settings.db_path) as store:
             status["jobs"] = store.status_counts()
     except Exception as exc:
         status["jobs_error"] = f"{type(exc).__name__}: {exc}"
