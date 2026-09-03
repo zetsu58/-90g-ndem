@@ -28,7 +28,11 @@ def _csv(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
 
 def _languages() -> tuple[str, ...]:
     requested = _csv("NEWS_LANGUAGES", ("tr", "en"))
-    supported = tuple(dict.fromkeys(x.casefold() for x in requested if x.casefold() in {"tr", "en"}))
+    supported = tuple(
+        dict.fromkeys(
+            x.casefold() for x in requested if x.casefold() in {"tr", "en"}
+        )
+    )
     return supported or ("tr",)
 
 
@@ -55,3 +59,10 @@ class Settings:
     bgm_type: str = os.getenv("NEWS_BGM_TYPE", "").strip()
     bgm_volume: float = float(os.getenv("NEWS_BGM_VOLUME", "0.10"))
     fetch_workers: int = int(os.getenv("NEWS_FETCH_WORKERS", "5"))
+    max_inflight_tasks: int = int(os.getenv("NEWS_MAX_INFLIGHT_TASKS", "2"))
+    max_task_attempts: int = int(os.getenv("NEWS_MAX_TASK_ATTEMPTS", "3"))
+    retry_delay_seconds: int = int(os.getenv("NEWS_RETRY_DELAY_SECONDS", "300"))
+    submission_stale_seconds: int = int(
+        os.getenv("NEWS_SUBMISSION_STALE_SECONDS", "300")
+    )
+    mpt_request_timeout: int = int(os.getenv("MPT_REQUEST_TIMEOUT", "30"))

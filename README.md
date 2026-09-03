@@ -10,7 +10,22 @@ Anlık Türkçe ve global futbol haberlerini tarar, en az iki bağımsız yayın
 4. En az iki bağımsız yayıncı şartı uygulanır.
 5. Türkçe ve İngilizce sürümler dil bazında ayrı ayrı tekrar kontrolünden geçirilir.
 6. Her pazar için birebir çeviri olmayan, özgün kanca ve editoryal açıklama içeren 30–40 saniyelik bir senaryo üretilir.
-7. MoneyPrinterTurbo; dile özel ses, altyazı ve İngilizce materyal arama terimleriyle Full HD Shorts videosunu üretir.
+7. MoneyPrinterTurbo; dile özel ses, altyazı ve İngilizce materyal arama terimleriyle HD Shorts videosunu üretir.
+8. Bir haber yalnızca görev kimliği alındığında değil, MoneyPrinterTurbo geçerli bir
+   `final-*.mp4` döndürdüğünde tamamlanmış sayılır. Başarısız işler gecikmeli ve
+   sınırlı sayıda yeniden denenir.
+
+## Dayanıklı görev yaşam döngüsü
+
+Görevler SQLite içinde `submitting → submitted → processing → complete/failed`
+durumlarıyla izlenir. `/run` önce mevcut işleri MoneyPrinterTurbo'dan uzlaştırır,
+sonra boş kapasite kadar yeni iş gönderir. Geçici Colab/ngrok kesintisi bir işi
+başarısız saymaz; sonraki taramada tekrar sorgulanır. `/status` son tarama sonucunu
+ve durum sayılarını döndürür.
+
+MoneyPrinterTurbo anahtarı `x-api-key` başlığında gönderilir. Render üzerinde
+`NEWS_DB_PATH=/data/viral_futbol.sqlite3` kullanılıyorsa `/data` kalıcı diske
+bağlanmalıdır; aksi halde Render yeniden başlatıldığında haber geçmişi kaybolur.
 
 ## Dil profilleri
 
@@ -22,10 +37,11 @@ Anlık Türkçe ve global futbol haberlerini tarar, en az iki bağımsız yayın
 
 ## Hızlı ve kaliteli video profili
 
-- Çıktı: dikey 9:16 Full HD.
+- Çıktı: otomasyon için hızlı ve net `720×1280`; istenirse `1080×1920`.
 - Hedef süre: 30–40 saniye.
 - Klip süresi: varsayılan 5 saniye; yaklaşık 6–9 klip.
 - Kaynak eşleştirme: senaryo sırasına göre.
+- Geçiş: klipler arasında dinamik `Shuffle` profili.
 - Ses hızı: doğal kalacak şekilde `1.03x`.
 - Müzik seviyesi: etkinleştirildiğinde `0.10`.
 
@@ -38,6 +54,10 @@ docker compose up -d --build
 ```
 
 İlk kontrolde `NEWS_DRY_RUN=true` kullanın. Gerçek üretim için yalnızca uçtan uca kontrol tamamlandıktan sonra `false` yapın.
+
+Dayanıklılık ve kapasite değişkenleri: `NEWS_MAX_INFLIGHT_TASKS`,
+`NEWS_MAX_TASK_ATTEMPTS`, `NEWS_RETRY_DELAY_SECONDS`,
+`NEWS_SUBMISSION_STALE_SECONDS`, `MPT_REQUEST_TIMEOUT`.
 
 ## Telifsiz müzik güvenlik kuralı
 
