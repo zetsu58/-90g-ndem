@@ -411,7 +411,12 @@ Kaynaklar (yalnızca metadata):
     }
 
 
-def submit(payload: dict, settings: Settings) -> str:
+def submit(
+    payload: dict,
+    settings: Settings,
+    *,
+    idempotency_key: str = "",
+) -> str:
     if settings.dry_run:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return "dry-run"
@@ -419,6 +424,8 @@ def submit(payload: dict, settings: Settings) -> str:
     headers = {"Content-Type": "application/json"}
     if settings.mpt_api_key:
         headers["x-api-key"] = settings.mpt_api_key
+    if idempotency_key:
+        headers["Idempotency-Key"] = idempotency_key
     request = urllib.request.Request(
         f"{settings.mpt_url.rstrip('/')}/videos",
         data=body,
@@ -565,7 +572,11 @@ def run_once(settings: Settings) -> dict:
             for cluster in clusters:
                 story_id = store.story_id(cluster, language)
                 if settings.dry_run:
-                    submit(build_payload(cluster, settings, language), settings)
+                    submit(
+                        build_payload(cluster, settings, language),
+                        settings,
+                        idempotency_key=f"viral-futbol:{story_id}",
+                    )
                     diagnostics["submitted"] += 1
                     language_diagnostics["submitted"] += 1
                     diagnostics["selected"].append(
@@ -596,7 +607,9 @@ def run_once(settings: Settings) -> dict:
                     continue
                 try:
                     task_id = submit(
-                        build_payload(cluster, settings, language), settings
+                        build_payload(cluster, settings, language),
+                        settings,
+                        idempotency_key=f"viral-futbol:{story_id}",
                     )
                     store.mark_submitted(story_id, task_id)
                     diagnostics["submitted"] += 1

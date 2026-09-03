@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from http.server import ThreadingHTTPServer
 from urllib.request import urlopen
 
+from viral_futbol import web
 from viral_futbol.config import Settings
 from viral_futbol.service import (
     Store,
@@ -120,12 +121,20 @@ def test_mpt_requests_use_x_api_key(monkeypatch, tmp_path):
         mpt_api_key="secret-test-key",
     )
 
-    assert submit({"video_subject": "test"}, settings) == "task-123"
+    assert (
+        submit(
+            {"video_subject": "test"},
+            settings,
+            idempotency_key="viral-futbol:story-123",
+        )
+        == "task-123"
+    )
     assert query_task("task-123", settings)["state"] == 4
     assert all(
         request.get_header("X-api-key") == "secret-test-key"
         for request in requests
     )
+    assert requests[0].get_header("Idempotency-key") == "viral-futbol:story-123"
 
 
 def test_story_is_complete_only_after_mpt_reports_video(monkeypatch, tmp_path):
@@ -142,8 +151,9 @@ def test_story_is_complete_only_after_mpt_reports_video(monkeypatch, tmp_path):
     )
     submitted_payloads = []
 
-    def fake_submit(payload, _settings):
+    def fake_submit(payload, _settings, **kwargs):
         submitted_payloads.append(payload)
+        assert kwargs["idempotency_key"].startswith("viral-futbol:")
         return "task-456"
 
     monkeypatch.setattr("viral_futbol.service.submit", fake_submit)
@@ -197,6 +207,26 @@ def test_web_routes_normalize_trailing_slashes_and_expose_version(monkeypatch):
     assert version == {"status": "ok", "version": VERSION}
 
 
+def test_public_status_reports_readiness_without_exposing_secrets(
+    monkeypatch, tmp_path
+):
+    settings = Settings(
+        dry_run=True,
+        languages=("tr", "en"),
+        db_path=str(tmp_path / "jobs.sqlite3"),
+        mpt_url="https://mpt.example/api/v1",
+        mpt_api_key="do-not-expose",
+    )
+    monkeypatch.setattr(web, "Settings", lambda: settings)
+
+    status = web.public_status()
+
+    assert status["configuration"]["dry_run"] is True
+    assert status["configuration"]["mpt_api_key_configured"] is True
+    assert status["configuration"]["idempotency"] == "remote-drive-backed"
+    assert "do-not-expose" not in json.dumps(status)
+
+
 def test_failed_submission_becomes_retryable(monkeypatch, tmp_path):
     cluster = _cluster()
     settings = Settings(
@@ -212,8 +242,9 @@ def test_failed_submission_becomes_retryable(monkeypatch, tmp_path):
     )
     attempts = []
 
-    def flaky_submit(payload, _settings):
+    def flaky_submit(payload, _settings, **kwargs):
         attempts.append(payload)
+        assert kwargs["idempotency_key"].startswith("viral-futbol:")
         if len(attempts) == 1:
             raise OSError("temporary tunnel failure")
         return "task-retry"
@@ -228,3 +259,28 @@ def test_failed_submission_becomes_retryable(monkeypatch, tmp_path):
     assert len(attempts) == 2
     with Store(settings.db_path) as store:
         assert store.status_counts() == {"submitted": 1}
+
+
+def test_store_reset_reuses_the_same_remote_idempotency_key(monkeypatch, tmp_path):
+    cluster = _cluster()
+    monkeypatch.setattr(
+        "viral_futbol.service._fetch_queries", lambda *args, **kwargs: cluster
+    )
+    keys = []
+
+    def fake_submit(payload, _settings, **kwargs):
+        keys.append(kwargs["idempotency_key"])
+        return f"task-{len(keys)}"
+
+    monkeypatch.setattr("viral_futbol.service.submit", fake_submit)
+    common = {
+        "dry_run": False,
+        "languages": ("en",),
+        "global_queries": ("football",),
+    }
+
+    first = run_once(Settings(db_path=str(tmp_path / "first.sqlite3"), **common))
+    second = run_once(Settings(db_path=str(tmp_path / "reset.sqlite3"), **common))
+
+    assert first["submitted"] == second["submitted"] == 1
+    assert keys[0] == keys[1]
