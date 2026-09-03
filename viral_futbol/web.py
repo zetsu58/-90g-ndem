@@ -3,29 +3,69 @@ from __future__ import annotations
 import json
 import os
 import threading
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 from .config import Settings
-from .service import run_once
+from .service import Store, run_once
 
-VERSION = "90gundem-render-2026-09-03-v3"
+
+VERSION = "90gundem-render-2026-09-03-v4"
 _lock = threading.Lock()
-_state = {"running": False, "last_result": None, "last_error": None}
+_state = {
+    "running": False,
+    "last_result": None,
+    "last_error": None,
+    "last_started_at": None,
+    "last_finished_at": None,
+}
 
 
-def _scan() -> None:
-    if not _lock.acquire(blocking=False):
-        return
-    _state["running"] = True
+def _timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _scan_with_reservation() -> None:
+    """Run one scan after the caller has atomically acquired the reservation."""
     try:
         _state["last_result"] = run_once(Settings())
         _state["last_error"] = None
     except Exception as exc:
-        _state["last_error"] = str(exc)
+        _state["last_error"] = f"{type(exc).__name__}: {exc}"
     finally:
+        _state["last_finished_at"] = _timestamp()
         _state["running"] = False
         _lock.release()
+
+
+def start_scan() -> bool:
+    """Atomically accept at most one scan and return whether it started."""
+    if not _lock.acquire(blocking=False):
+        return False
+    _state["running"] = True
+    _state["last_started_at"] = _timestamp()
+    try:
+        threading.Thread(
+            target=_scan_with_reservation,
+            name="viral-futbol-scan",
+            daemon=True,
+        ).start()
+    except Exception:
+        _state["running"] = False
+        _lock.release()
+        raise
+    return True
+
+
+def public_status() -> dict:
+    status = dict(_state)
+    try:
+        with Store(Settings().db_path) as store:
+            status["jobs"] = store.status_counts()
+    except Exception as exc:
+        status["jobs_error"] = f"{type(exc).__name__}: {exc}"
+    return status
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -41,19 +81,34 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         path = urlsplit(self.path).path.rstrip("/") or "/"
         if path in {"/", "/health", "/status"}:
-            self._reply(200, {"status": "ok", "version": VERSION, **_state})
+            self._reply(
+                200,
+                {"status": "ok", "version": VERSION, **public_status()},
+            )
             return
         if path == "/version":
             self._reply(200, {"status": "ok", "version": VERSION})
             return
         if path == "/run":
-            if _state["running"]:
-                self._reply(202, {"status": "already-running", "version": VERSION})
+            if not start_scan():
+                self._reply(
+                    202,
+                    {
+                        "status": "already-running",
+                        "accepted": True,
+                        "version": VERSION,
+                    },
+                )
                 return
-            threading.Thread(target=_scan, daemon=True).start()
-            self._reply(202, {"status": "started", "version": VERSION})
+            self._reply(
+                202,
+                {"status": "started", "accepted": True, "version": VERSION},
+            )
             return
-        self._reply(404, {"error": "not-found", "path": path, "version": VERSION})
+        self._reply(
+            404,
+            {"error": "not-found", "path": path, "version": VERSION},
+        )
 
     def log_message(self, fmt: str, *args: object) -> None:
         print(fmt % args, flush=True)
