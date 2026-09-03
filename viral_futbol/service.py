@@ -47,7 +47,6 @@ def title_similarity(left: str, right: str) -> float:
 
 
 def publisher_family(value: str) -> str:
-    """Collapse sibling labels such as 'NTV Haber' and 'NTVSpor'."""
     normalized = re.sub(r"[^a-zçğıöşü0-9]", "", value.casefold().replace("ı", "i"))
     noise = ("haberleri", "gazetesi", "haber", "spor", "tv", "comtr", "com")
     for suffix in noise:
@@ -57,18 +56,9 @@ def publisher_family(value: str) -> str:
     return normalized
 
 
-def fetch_google_news(
-    query: str,
-    timeout: int = 20,
-    *,
-    language: str = "tr",
-    country: str = "TR",
-) -> list[Story]:
+def fetch_google_news(query: str, timeout: int = 20, *, language: str = "tr", country: str = "TR") -> list[Story]:
     encoded = urllib.parse.quote_plus(query)
-    url = (
-        f"https://news.google.com/rss/search?q={encoded}"
-        f"&hl={language}&gl={country}&ceid={country}:{language}"
-    )
+    url = f"https://news.google.com/rss/search?q={encoded}&hl={language}&gl={country}&ceid={country}:{language}"
     request = urllib.request.Request(url, headers={"User-Agent": "ViralFutbol/1.0"})
     with urllib.request.urlopen(request, timeout=timeout) as response:
         root = ET.fromstring(response.read())
@@ -87,36 +77,21 @@ def fetch_google_news(
     return stories
 
 
-def _fetch_queries(
-    queries: tuple[str, ...],
-    *,
-    language: str,
-    country: str,
-    workers: int,
-) -> list[Story]:
-    """Fetch independent RSS searches concurrently so adding English stays fast."""
+def _fetch_queries(queries: tuple[str, ...], *, language: str, country: str, workers: int) -> list[Story]:
     stories: list[Story] = []
     max_workers = max(1, min(workers, len(queries)))
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(
-                fetch_google_news,
-                query,
-                language=language,
-                country=country,
-            ): query
-            for query in queries
-        }
+        futures = {executor.submit(fetch_google_news, query, language=language, country=country): query for query in queries}
         for future in as_completed(futures):
             try:
                 stories.extend(future.result())
             except Exception as exc:
-                print(f"ViralFutbol feed error ({language}, {futures[future]}): {exc}")
+                print(f"ViralFutbol feed error ({language}, {futures[future]}): {exc}", flush=True)
     return stories
 
 
 def news_editions(settings: Settings) -> list[tuple[str, str, tuple[str, ...]]]:
-    editions: list[tuple[str, str, tuple[str, ...]]] = []
+    editions = []
     if "tr" in settings.languages:
         editions.append(("tr", "TR", settings.queries))
     if "en" in settings.languages:
@@ -135,20 +110,14 @@ def verified_clusters(stories: list[Story], settings: Settings) -> list[list[Sto
                 break
         else:
             clusters.append([story])
-    return [
-        c for c in clusters
-        if len({publisher_family(s.publisher) for s in c}) >= settings.min_sources
-    ]
+    return [c for c in clusters if len({publisher_family(s.publisher) for s in c}) >= settings.min_sources]
 
 
 class Store:
     def __init__(self, filename: str):
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(filename)
-        self.db.execute(
-            "CREATE TABLE IF NOT EXISTS published "
-            "(story_id TEXT PRIMARY KEY, task_id TEXT, created_at TEXT)"
-        )
+        self.db.execute("CREATE TABLE IF NOT EXISTS published (story_id TEXT PRIMARY KEY, task_id TEXT, created_at TEXT)")
         self.db.commit()
 
     @staticmethod
@@ -157,127 +126,78 @@ class Store:
         return hashlib.sha256(f"{language}:{canonical}".encode()).hexdigest()[:24]
 
     def contains(self, story_id: str) -> bool:
-        return self.db.execute(
-            "SELECT 1 FROM published WHERE story_id=?", (story_id,)
-        ).fetchone() is not None
+        return self.db.execute("SELECT 1 FROM published WHERE story_id=?", (story_id,)).fetchone() is not None
 
     def save(self, story_id: str, task_id: str) -> None:
-        self.db.execute(
-            "INSERT OR IGNORE INTO published VALUES (?, ?, ?)",
-            (story_id, task_id, datetime.now(timezone.utc).isoformat()),
-        )
+        self.db.execute("INSERT OR IGNORE INTO published VALUES (?, ?, ?)", (story_id, task_id, datetime.now(timezone.utc).isoformat()))
         self.db.commit()
 
 
 def build_payload(cluster: list[Story], settings: Settings, language: str = "tr") -> dict:
     facts = "\n".join(f"- {s.publisher}: {s.title}" for s in cluster[:5])
     sources = "\n".join(f"- {s.publisher}: {s.url}" for s in cluster[:5])
-
     if language == "en":
-        prompt = f"""Write a distinct 30-40 second English YouTube Shorts script from the verified football update below.
-Use only facts shared by the supplied headlines. Do not invent quotes, fees, medical results, completion status, or motives.
-Do not simply read or translate a headline. Open with an accurate hook, explain briefly why the confirmed update matters, and end with one natural question.
-Use neutral, conversational global English. Do not read source URLs aloud. Keep it between 75 and 100 words.
-
-Verified records:
-{facts}
-
-Sources (metadata only):
-{sources}"""
-        system_prompt = (
-            "You are a careful global football news editor. Accuracy and original "
-            "editorial value matter more than speed or hype."
-        )
-        voice_name = settings.english_voice_name
-        font_size = 64
+        prompt = f"Write a distinct 30-40 second English YouTube Shorts script from the verified football update below.\nUse only facts shared by the supplied headlines. Do not invent quotes, fees, medical results, completion status, or motives.\nOpen with an accurate hook, explain briefly why it matters, and end with one natural question. Keep it between 75 and 100 words.\n\nVerified records:\n{facts}\n\nSources:\n{sources}"
+        system_prompt = "You are a careful global football news editor. Accuracy and original editorial value matter more than speed or hype."
+        voice_name, font_size = settings.english_voice_name, 64
     else:
-        prompt = f"""Aşağıdaki doğrulanmış futbol haberinden özgün, 30-40 saniyelik Türkçe YouTube Shorts metni yaz.
-Yalnızca verilen başlıklardaki ortak gerçekleri kullan; tahmin, uydurma alıntı, ücret, sağlık sonucu veya kesinleşmemiş transfer durumu ekleme.
-Haberi yalnızca okumakla yetinme: doğru bir kancayla başla, doğrulanmış gelişmenin neden önemli olduğunu kısaca açıkla ve doğal bir soruyla bitir.
-Kaynak URL'lerini seslendirme. 75-100 kelimeyi aşma.
-
-Doğrulanmış kayıtlar:
-{facts}
-
-Kaynaklar (yalnızca metadata):
-{sources}"""
-        system_prompt = (
-            "Sen doğruluğu, özgün editoryal değeri ve izleyici güvenini hızdan ve "
-            "sansasyondan önemli gören deneyimli bir Türk futbol haber editörüsün."
-        )
-        voice_name = settings.voice_name
-        font_size = 70
-
-    return {
-        "video_subject": cluster[0].title,
-        "video_script_prompt": prompt,
-        "custom_system_prompt": system_prompt,
-        "video_aspect": "9:16",
-        "video_language": language,
-        "voice_name": voice_name,
-        "voice_rate": settings.voice_rate,
-        "video_source": settings.video_source,
-        "video_concat_mode": "sequential",
-        "video_clip_duration": max(3, settings.video_clip_duration),
-        "match_materials_to_script": True,
-        "bgm_type": settings.bgm_type,
-        "bgm_volume": settings.bgm_volume,
-        "subtitle_enabled": True,
-        "subtitle_position": "center",
-        "font_size": font_size,
-        "stroke_width": 2.5,
-        "video_count": 1,
-    }
+        prompt = f"Aşağıdaki doğrulanmış futbol haberinden özgün, 30-40 saniyelik Türkçe YouTube Shorts metni yaz.\nYalnızca verilen başlıklardaki ortak gerçekleri kullan; tahmin veya kesinleşmemiş transfer durumu ekleme. Doğru bir kancayla başla, neden önemli olduğunu açıkla ve doğal bir soruyla bitir. 75-100 kelimeyi aşma.\n\nDoğrulanmış kayıtlar:\n{facts}\n\nKaynaklar:\n{sources}"
+        system_prompt = "Sen doğruluğu ve izleyici güvenini sansasyondan önemli gören deneyimli bir Türk futbol haber editörüsün."
+        voice_name, font_size = settings.voice_name, 70
+    return {"video_subject": cluster[0].title, "video_script_prompt": prompt, "custom_system_prompt": system_prompt, "video_aspect": "9:16", "video_language": language, "voice_name": voice_name, "voice_rate": settings.voice_rate, "video_source": settings.video_source, "video_concat_mode": "sequential", "video_clip_duration": max(3, settings.video_clip_duration), "match_materials_to_script": True, "bgm_type": settings.bgm_type, "bgm_volume": settings.bgm_volume, "subtitle_enabled": True, "subtitle_position": "center", "font_size": font_size, "stroke_width": 2.5, "video_count": 1}
 
 
 def submit(payload: dict, settings: Settings) -> str:
     if settings.dry_run:
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print(json.dumps(payload, ensure_ascii=False, indent=2), flush=True)
         return "dry-run"
     body = json.dumps(payload).encode()
     headers = {"Content-Type": "application/json"}
     if settings.mpt_api_key:
         headers["Authorization"] = f"Bearer {settings.mpt_api_key}"
-    request = urllib.request.Request(
-        f"{settings.mpt_url.rstrip('/')}/videos",
-        data=body,
-        headers=headers,
-        method="POST",
-    )
+    request = urllib.request.Request(f"{settings.mpt_url.rstrip('/')}/videos", data=body, headers=headers, method="POST")
     with urllib.request.urlopen(request, timeout=30) as response:
         result = json.loads(response.read())
     data = result.get("data") or result
     return str(data.get("task_id") or data.get("id") or "submitted")
 
 
-def run_once(settings: Settings) -> int:
+def run_once(settings: Settings) -> dict:
     store = Store(settings.db_path)
-    submitted = 0
+    diag = {"fetched": 0, "recent": 0, "verified": 0, "duplicates": 0, "submitted": 0, "dry_run": settings.dry_run, "languages": {}, "selected": []}
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=settings.max_age_minutes)
     for language, country, queries in news_editions(settings):
-        stories = _fetch_queries(
-            queries,
-            language=language,
-            country=country,
-            workers=settings.fetch_workers,
-        )
-        for cluster in verified_clusters(stories, settings):
+        stories = _fetch_queries(queries, language=language, country=country, workers=settings.fetch_workers)
+        recent = [s for s in stories if s.published >= cutoff]
+        clusters = verified_clusters(stories, settings)
+        lang = {"fetched": len(stories), "recent": len(recent), "verified": len(clusters), "duplicates": 0, "submitted": 0}
+        diag["fetched"] += len(stories)
+        diag["recent"] += len(recent)
+        diag["verified"] += len(clusters)
+        for cluster in clusters:
             story_id = store.story_id(cluster, language)
             if store.contains(story_id):
+                lang["duplicates"] += 1
+                diag["duplicates"] += 1
                 continue
             task_id = submit(build_payload(cluster, settings, language), settings)
             store.save(story_id, task_id)
-            submitted += 1
-    return submitted
+            lang["submitted"] += 1
+            diag["submitted"] += 1
+            diag["selected"].append({"language": language, "title": cluster[0].title, "sources": sorted({s.publisher for s in cluster}), "task_id": task_id})
+        diag["languages"][language] = lang
+    print("ViralFutbol diagnostics: " + json.dumps(diag, ensure_ascii=False), flush=True)
+    return diag
 
 
 def main() -> None:
     settings = Settings()
     while True:
         try:
-            count = run_once(settings)
-            print(f"ViralFutbol: {count} new verified TR/EN task(s) submitted.")
+            result = run_once(settings)
+            print(f"ViralFutbol: {result['submitted']} new verified task(s) submitted.", flush=True)
         except Exception as exc:
-            print(f"ViralFutbol error: {exc}")
+            print(f"ViralFutbol error: {exc}", flush=True)
         time.sleep(max(60, settings.poll_seconds))
 
 
