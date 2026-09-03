@@ -11,7 +11,7 @@ from .config import Settings
 from .service import Store, run_once
 
 
-VERSION = "90gundem-render-2026-09-03-v4"
+VERSION = "90gundem-render-2026-09-03-v5"
 _lock = threading.Lock()
 _state = {
     "running": False,
