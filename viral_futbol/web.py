@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 from .config import Settings
 from .service import run_once
 
-VERSION = "90gundem-render-2026-09-03-v2"
+VERSION = "90gundem-render-2026-09-03-v3"
 _lock = threading.Lock()
 _state = {"running": False, "last_result": None, "last_error": None}
 
@@ -40,7 +40,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         path = urlsplit(self.path).path.rstrip("/") or "/"
-        if path in {"/", "/health"}:
+        if path in {"/", "/health", "/status"}:
             self._reply(200, {"status": "ok", "version": VERSION, **_state})
             return
         if path == "/version":
