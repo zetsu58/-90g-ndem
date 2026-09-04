@@ -3,6 +3,19 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
+# X is a general Turkish breaking-news desk, not a football-only feed.
+DEFAULT_X_QUERIES = (
+    "Türkiye son dakika",
+    "Türkiye gündem",
+    "siyaset son dakika",
+    "ekonomi son dakika",
+    "gündelik yaşam son dakika",
+    "dünya son dakika",
+    "teknoloji son dakika",
+    "sağlık son dakika",
+)
+
+# Shorts remains strictly football.
 DEFAULT_QUERIES = (
     "Galatasaray transfer", "Fenerbahçe transfer", "Beşiktaş transfer",
     "Trabzonspor transfer", "Türkiye futbol son dakika",
@@ -25,17 +38,14 @@ def _languages() -> tuple[str, ...]:
 class Settings:
     mpt_url: str = os.getenv("MPT_API_URL", "http://127.0.0.1:8080/api/v1")
     mpt_api_key: str = os.getenv("MPT_API_KEY", "")
+    x_queries: tuple[str, ...] = field(default_factory=lambda: _csv("X_NEWS_QUERIES", DEFAULT_X_QUERIES))
     queries: tuple[str, ...] = field(default_factory=lambda: _csv("NEWS_QUERIES", DEFAULT_QUERIES))
     global_queries: tuple[str, ...] = field(default_factory=lambda: _csv("NEWS_GLOBAL_QUERIES", DEFAULT_GLOBAL_QUERIES))
     languages: tuple[str, ...] = field(default_factory=_languages)
-
-    # One fast scanner feeds two freshness lanes:
-    # X = near-real-time news, Shorts = only very fresh stories.
     poll_seconds: int = int(os.getenv("NEWS_POLL_SECONDS", "120"))
     x_max_age_minutes: int = int(os.getenv("X_NEWS_MAX_AGE_MINUTES", "3"))
     shorts_max_age_minutes: int = int(os.getenv("SHORTS_MAX_AGE_MINUTES", "7"))
     max_age_minutes: int = int(os.getenv("NEWS_MAX_AGE_MINUTES", "7"))
-
     min_sources: int = int(os.getenv("NEWS_MIN_SOURCES", "2"))
     similarity: float = float(os.getenv("NEWS_TITLE_SIMILARITY", "0.52"))
     dry_run: bool = os.getenv("NEWS_DRY_RUN", "true").lower() in {"1", "true", "yes"}
