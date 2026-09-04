@@ -6,8 +6,7 @@ from viral_futbol.worker import AutonomousWorker
 
 
 def cycle() -> object:
-    settings = Settings.from_env()
-    return run_scan(settings)
+    return run_scan(Settings())
 
 
 if __name__ == "__main__":
