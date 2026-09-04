@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Callable
 
@@ -13,10 +14,14 @@ class XNewsPost:
     image_path: str = ""
 
 
+def _include_source_url() -> bool:
+    return os.getenv("X_INCLUDE_SOURCE_URL", "false").casefold() in {"1", "true", "yes", "on"}
+
+
 def build_x_news_post(title: str, source_url: str, *, max_chars: int = 275) -> XNewsPost:
-    """Create compact Turkish news copy while preserving room for the source URL."""
+    """Create compact Turkish news copy; zero-budget mode omits the clickable URL."""
     clean = " ".join(title.split())
-    suffix = "\n\nKaynak: " + source_url
+    suffix = ("\n\nKaynak: " + source_url) if _include_source_url() else "\n\n#SonDakika #Gundem"
     room = max(40, max_chars - len(suffix))
     if len(clean) > room:
         clean = clean[: max(1, room - 1)].rstrip() + "…"
@@ -24,13 +29,6 @@ def build_x_news_post(title: str, source_url: str, *, max_chars: int = 275) -> X
 
 
 class XNewsPublisher:
-    """Transport-neutral X publisher.
-
-    Live OAuth/API transport is injected later. Keeping credentials outside this
-    module prevents secrets from leaking into the repository and lets dry-run
-    deployments work before the X account is authorized.
-    """
-
     def __init__(self, transport: Callable[[XNewsPost], PublishResult] | None = None, *, dry_run: bool = True) -> None:
         self.transport = transport
         self.dry_run = dry_run

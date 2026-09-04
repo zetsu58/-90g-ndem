@@ -7,29 +7,19 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
-from .config import Settings
-from .service import Store, run_once
-
-
-VERSION = "90gundem-render-2026-09-03-v5"
+VERSION = "90gundem-zero-budget-2026-09-05-v6"
 _lock = threading.Lock()
-_state = {
-    "running": False,
-    "last_result": None,
-    "last_error": None,
-    "last_started_at": None,
-    "last_finished_at": None,
-}
+_state = {"running": False, "last_result": None, "last_error": None, "last_started_at": None, "last_finished_at": None}
 
 
 def _timestamp() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _scan_with_reservation() -> None:
-    """Run one scan after the caller has atomically acquired the reservation."""
+def _run_cycle() -> None:
     try:
-        _state["last_result"] = run_once(Settings())
+        from scripts.run_worker import cycle
+        _state["last_result"] = cycle()
         _state["last_error"] = None
     except Exception as exc:
         _state["last_error"] = f"{type(exc).__name__}: {exc}"
@@ -39,18 +29,13 @@ def _scan_with_reservation() -> None:
         _lock.release()
 
 
-def start_scan() -> bool:
-    """Atomically accept at most one scan and return whether it started."""
+def start_cycle() -> bool:
     if not _lock.acquire(blocking=False):
         return False
     _state["running"] = True
     _state["last_started_at"] = _timestamp()
     try:
-        threading.Thread(
-            target=_scan_with_reservation,
-            name="viral-futbol-scan",
-            daemon=True,
-        ).start()
+        threading.Thread(target=_run_cycle, name="90gundem-cycle", daemon=True).start()
     except Exception:
         _state["running"] = False
         _lock.release()
@@ -59,22 +44,21 @@ def start_scan() -> bool:
 
 
 def public_status() -> dict:
-    status = dict(_state)
+    from .config import Settings
+    from .publishers.x_transport import x_credentials_ready
     settings = Settings()
-    status["configuration"] = {
-        "dry_run": settings.dry_run,
-        "languages": list(settings.languages),
-        "mpt_url_configured": bool(settings.mpt_url.strip()),
-        "mpt_api_key_configured": bool(settings.mpt_api_key.strip()),
-        "max_inflight_tasks": settings.max_inflight_tasks,
-        "idempotency": "remote-drive-backed",
+    return {
+        **dict(_state),
+        "configuration": {
+            "dry_run": settings.dry_run,
+            "x_publish_enabled": os.getenv("X_PUBLISH_ENABLED", "false").casefold() in {"1", "true", "yes", "on"},
+            "x_credentials_ready": x_credentials_ready(),
+            "x_daily_post_limit": int(os.getenv("X_DAILY_POST_LIMIT", "20")),
+            "poll_seconds": settings.poll_seconds,
+            "x_max_age_minutes": settings.x_max_age_minutes,
+            "shorts_max_age_minutes": settings.shorts_max_age_minutes,
+        },
     }
-    try:
-        with Store(settings.db_path) as store:
-            status["jobs"] = store.status_counts()
-    except Exception as exc:
-        status["jobs_error"] = f"{type(exc).__name__}: {exc}"
-    return status
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -87,37 +71,31 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _authorized(self) -> bool:
+        secret = os.getenv("CYCLE_SECRET", "").strip()
+        if not secret:
+            return False
+        supplied = self.headers.get("Authorization", "")
+        return supplied == f"Bearer {secret}"
+
     def do_GET(self) -> None:
         path = urlsplit(self.path).path.rstrip("/") or "/"
         if path in {"/", "/health", "/status"}:
-            self._reply(
-                200,
-                {"status": "ok", "version": VERSION, **public_status()},
-            )
+            self._reply(200, {"status": "ok", "version": VERSION, **public_status()})
             return
         if path == "/version":
             self._reply(200, {"status": "ok", "version": VERSION})
             return
-        if path == "/run":
-            if not start_scan():
-                self._reply(
-                    202,
-                    {
-                        "status": "already-running",
-                        "accepted": True,
-                        "version": VERSION,
-                    },
-                )
+        if path == "/cycle":
+            if not self._authorized():
+                self._reply(401, {"error": "unauthorized", "version": VERSION})
                 return
-            self._reply(
-                202,
-                {"status": "started", "accepted": True, "version": VERSION},
-            )
+            if not start_cycle():
+                self._reply(202, {"status": "already-running", "accepted": True, "version": VERSION})
+                return
+            self._reply(202, {"status": "started", "accepted": True, "version": VERSION})
             return
-        self._reply(
-            404,
-            {"error": "not-found", "path": path, "version": VERSION},
-        )
+        self._reply(404, {"error": "not-found", "path": path, "version": VERSION})
 
     def log_message(self, fmt: str, *args: object) -> None:
         print(fmt % args, flush=True)
