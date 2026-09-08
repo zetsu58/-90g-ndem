@@ -11,6 +11,7 @@ V2_TESTS = [
     "tests/test_service_v2_payload.py",
     "tests/test_media_engine.py",
     "tests/test_visual_quality.py",
+    "tests/test_retention_engine.py",
 ]
 
 
