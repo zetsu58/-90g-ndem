@@ -1,0 +1,35 @@
+name: Viral Engine V2 CI
+
+on:
+  push:
+    branches: [viral-engine-v2]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest
+      - name: Compile V2 modules
+        run: |
+          python -m py_compile \
+            viral_futbol/trend_score.py \
+            viral_futbol/viral_engine.py \
+            viral_futbol/shorts_script.py \
+            viral_futbol/media_engine.py \
+            viral_futbol/visual_quality.py \
+            viral_futbol/retention_engine.py \
+            viral_futbol/service_v2.py
+      - name: Run V2 tests
+        run: pytest -q tests/test_viral_engine.py tests/test_service_v2_gate.py tests/test_service_v2_payload.py tests/test_media_engine.py tests/test_visual_quality.py
