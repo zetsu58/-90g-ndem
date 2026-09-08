@@ -11,24 +11,36 @@ BRANCH = "viral-engine-v2"
 ROOT = Path("/content/viral-futbol-v2")
 
 
-def sh(*args, cwd=None, env=None):
-    print("$", " ".join(map(str, args)), flush=True)
+def sh(*args, cwd=None, env=None, display=None):
+    # display lets authenticated commands be logged without exposing secrets.
+    shown = display if display is not None else " ".join(map(str, args))
+    print("$", shown, flush=True)
     subprocess.run(list(map(str, args)), cwd=cwd, env=env, check=True)
 
 
 print("=== VIRAL FUTBOL V2 / FREE COLAB LAUNCHER ===")
 
 token = os.environ.get("GH_TOKEN", "").strip()
-clone_url = REPO
-if token:
-    clone_url = REPO.replace("https://", f"https://x-access-token:{token}@")
+auth_url = REPO if not token else REPO.replace("https://", f"https://x-access-token:{token}@")
 
 if not ROOT.exists():
-    sh("git", "clone", "--depth", "1", "--branch", BRANCH, clone_url, ROOT)
+    sh(
+        "git", "clone", "--depth", "1", "--branch", BRANCH, auth_url, ROOT,
+        display=f"git clone --depth 1 --branch {BRANCH} <private-repo> {ROOT}",
+    )
+    # Never persist the token in .git/config after clone.
+    sh("git", "remote", "set-url", "origin", REPO, cwd=ROOT)
 else:
-    sh("git", "fetch", "origin", BRANCH, cwd=ROOT)
+    # Fetch directly from the authenticated URL, but never print it. FETCH_HEAD
+    # avoids temporarily writing the credential-bearing URL into the remote config.
+    sh(
+        "git", "fetch", "--depth", "1", auth_url, BRANCH,
+        cwd=ROOT,
+        display=f"git fetch --depth 1 <private-repo> {BRANCH}",
+    )
     sh("git", "checkout", BRANCH, cwd=ROOT)
-    sh("git", "reset", "--hard", f"origin/{BRANCH}", cwd=ROOT)
+    sh("git", "reset", "--hard", "FETCH_HEAD", cwd=ROOT)
+    sh("git", "remote", "set-url", "origin", REPO, cwd=ROOT)
 
 # Kurulum ve ücretsiz yerel testler.
 sh(sys.executable, "-m", "pip", "install", "-q", "-e", ".", cwd=ROOT)
@@ -45,5 +57,6 @@ print("\n✅ V2 test + canlı haber dry-run tamamlandı.")
 print("Repo:", ROOT)
 print("Branch:", BRANCH)
 print("🔒 Render kapalı: NEWS_DRY_RUN=true")
+print("🔒 GH_TOKEN komut çıktısına veya git remote adresine yazılmadı.")
 print("Sonuçta PRODUCE olan haberlerin Viral Score, kaynak, senaryo promptu ve medya terimlerini kontrol et.")
 print("Gerekli API anahtarlarını Colab Secrets/ortam değişkenlerinde tut; notebook içine yazma.")
