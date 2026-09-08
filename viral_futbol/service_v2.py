@@ -20,6 +20,7 @@ def build_v2_payload(cluster, settings, language: str, viral_score: int) -> dict
     media_plan = build_media_plan(cluster[0].title, facts)
     visual_plan = build_visual_quality_plan(media_plan.entities, media_plan.context)
     retention = build_retention_plan(viral_score)
+    media_terms = prioritized_terms(material_terms(media_plan), visual_plan)
 
     payload["video_script_prompt"] = (
         build_script_prompt(title=cluster[0].title, facts=facts, target_seconds=40)
@@ -31,7 +32,11 @@ def build_v2_payload(cluster, settings, language: str, viral_score: int) -> dict
         "İlk iki saniye izleyiciyi yakalamalı; clickbait uğruna gerçeği bozma. Kısa cümleler ve yüksek "
         f"tempo kullan. Yalnızca doğal, tek parça seslendirme metni döndür. İçerik öncelik puanı: {viral_score}/100."
     )
-    payload["video_terms"] = prioritized_terms(material_terms(media_plan), visual_plan)
+    # Keep the outgoing MPT contract on fields already used by the legacy
+    # integration. Search hints are folded into video_subject instead of adding
+    # an unverified `video_terms` API field that may be rejected by MPT.
+    if media_terms:
+        payload["video_subject"] = f"{cluster[0].title} | " + ", ".join(media_terms[:6])
     payload["match_materials_to_script"] = True
     payload["video_clip_duration"] = visual_plan.clip_duration
     payload["video_transition_mode"] = visual_plan.transition_mode
@@ -90,7 +95,7 @@ def run_once_v2(settings) -> dict:
                     "viral_score": decision.score.score,
                     "viral_reasons": list(decision.score.reasons),
                     "script_engine": "shorts-v2" if language == "tr" else "legacy-en",
-                    "media_terms": payload.get("video_terms", []),
+                    "video_subject": payload.get("video_subject", ""),
                     "clip_duration": payload.get("video_clip_duration"),
                     "subtitle_font_size": payload.get("font_size"),
                 }
