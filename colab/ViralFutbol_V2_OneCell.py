@@ -1,5 +1,5 @@
 # Viral Futbol V2 - Google Colab tek hücre başlatıcı
-# Bu dosyanın tamamını tek Colab hücresinde çalıştırabilirsiniz.
+# Tek akış: repo güncelle -> test -> güvenli canlı-haber dry-run.
 
 import os
 import subprocess
@@ -11,14 +11,13 @@ BRANCH = "viral-engine-v2"
 ROOT = Path("/content/viral-futbol-v2")
 
 
-def sh(*args, cwd=None):
+def sh(*args, cwd=None, env=None):
     print("$", " ".join(map(str, args)), flush=True)
-    subprocess.run(list(map(str, args)), cwd=cwd, check=True)
+    subprocess.run(list(map(str, args)), cwd=cwd, env=env, check=True)
 
 
 print("=== VIRAL FUTBOL V2 / FREE COLAB LAUNCHER ===")
 
-# Private repo: Colab ortamında GH_TOKEN varsa HTTPS kimlik doğrulaması kullan.
 token = os.environ.get("GH_TOKEN", "").strip()
 clone_url = REPO
 if token:
@@ -31,12 +30,20 @@ else:
     sh("git", "checkout", BRANCH, cwd=ROOT)
     sh("git", "reset", "--hard", f"origin/{BRANCH}", cwd=ROOT)
 
-# Proje + test araçları
+# Kurulum ve ücretsiz yerel testler.
 sh(sys.executable, "-m", "pip", "install", "-q", "-e", ".", cwd=ROOT)
 sh(sys.executable, "scripts/colab_test_v2.py", cwd=ROOT)
 
-print("\n✅ V2 kodu çekildi ve test aşaması tamamlandı.")
+# Testler geçmeden bu satıra gelinmez. Ardından gerçek güncel haberleri analiz
+# ederiz; MPT submit/render kesin olarak kapalı tutulur.
+dry_env = os.environ.copy()
+dry_env["NEWS_DRY_RUN"] = "true"
+dry_env["NEWS_LANGUAGES"] = "tr"
+sh(sys.executable, "scripts/v2_dry_run.py", cwd=ROOT, env=dry_env)
+
+print("\n✅ V2 test + canlı haber dry-run tamamlandı.")
 print("Repo:", ROOT)
 print("Branch:", BRANCH)
-print("\nDRY-RUN önerilir: gerçek render açmadan önce V2 haber seçimi/payload çıktısını kontrol et.")
+print("🔒 Render kapalı: NEWS_DRY_RUN=true")
+print("Sonuçta PRODUCE olan haberlerin Viral Score, kaynak, senaryo promptu ve medya terimlerini kontrol et.")
 print("Gerekli API anahtarlarını Colab Secrets/ortam değişkenlerinde tut; notebook içine yazma.")
