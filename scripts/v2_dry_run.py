@@ -50,12 +50,17 @@ def main() -> int:
             if decision.score.decision == "produce":
                 payload = build_v2_payload(cluster, settings, language, decision.score.score)
                 item["script_prompt"] = payload.get("video_script_prompt", "")
-                item["final_video_terms"] = payload.get("video_terms", [])
+                item["video_subject"] = payload.get("video_subject", "")
                 item["render_settings"] = {
                     "aspect": payload.get("video_aspect"),
+                    "source": payload.get("video_source"),
                     "clip_duration": payload.get("video_clip_duration"),
+                    "transition": payload.get("video_transition_mode"),
                     "subtitle": payload.get("subtitle_enabled"),
+                    "subtitle_position": payload.get("subtitle_position"),
                     "font_size": payload.get("font_size"),
+                    "stroke_width": payload.get("stroke_width"),
+                    "bgm_type": payload.get("bgm_type"),
                     "bgm_volume": payload.get("bgm_volume"),
                 }
             report.append(item)
