@@ -25,3 +25,19 @@ def test_low_interest_story_is_not_auto_produced():
     ]
     decision = evaluate_cluster(cluster)
     assert decision.score.decision != "produce"
+
+
+def test_same_publisher_family_does_not_get_multi_source_bonus():
+    cluster = [
+        story("Galatasaray transfer görüşmesine başladı", "TRT Spor"),
+        story("Galatasaray transferinde yeni gelişme", "TRT Haber"),
+    ]
+    decision = evaluate_cluster(cluster)
+    assert decision.signals.source_count == 1
+    assert "multi-source +15" not in decision.score.reasons
+
+
+def test_turkish_official_publisher_name_is_recognized():
+    cluster = [story("Fenerbahçe transfer açıklaması yaptı", "Fenerbahçe")]
+    decision = evaluate_cluster(cluster)
+    assert decision.signals.official_source is True
