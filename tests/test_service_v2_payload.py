@@ -17,7 +17,7 @@ def settings():
     )
 
 
-def test_turkish_payload_uses_shorts_v2_prompt():
+def test_turkish_payload_uses_narration_only_shorts_v2_prompt():
     cluster = [Story(
         "Galatasaray transfer görüşmelerine başladı",
         "https://example.com/a",
@@ -26,8 +26,18 @@ def test_turkish_payload_uses_shorts_v2_prompt():
     )]
     payload = build_v2_payload(cluster, settings(), "tr", 82)
     prompt = payload["video_script_prompt"]
-    assert "ilk 2 saniyede" in prompt
-    assert "hook, event, detail, outcome, cta" in prompt
+
+    assert "İlk 2 saniye" in prompt
+    assert "TEK PARÇA" in prompt
+    assert "JSON, başlık" in prompt
     assert "Bilgi uydurma" in prompt
+    assert "hook, event, detail, outcome, cta" not in prompt
+    assert "JSON dışına çıkma" not in payload["custom_system_prompt"]
+    assert "tek parça seslendirme metni" in payload["custom_system_prompt"]
     assert payload["video_aspect"] == "9:16"
+    assert payload["video_clip_duration"] == 3
+    assert payload["subtitle_enabled"] is True
+    assert payload["subtitle_position"] == "center"
+    assert payload["font_size"] == 78
+    assert payload["stroke_width"] == 3.0
     assert payload["bgm_volume"] == 0.2
