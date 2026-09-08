@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-from viral_futbol.service import Story
+from viral_futbol.service import Story, build_payload
 from viral_futbol.service_v2 import build_v2_payload
 
 
@@ -17,14 +17,17 @@ def settings():
     )
 
 
-def test_turkish_payload_uses_narration_only_shorts_v2_prompt():
-    cluster = [Story(
+def sample_cluster():
+    return [Story(
         "Galatasaray transfer görüşmelerine başladı",
         "https://example.com/a",
         "Kaynak A",
         datetime.now(timezone.utc),
     )]
-    payload = build_v2_payload(cluster, settings(), "tr", 82)
+
+
+def test_turkish_payload_uses_narration_only_shorts_v2_prompt():
+    payload = build_v2_payload(sample_cluster(), settings(), "tr", 82)
     prompt = payload["video_script_prompt"]
 
     assert "İlk 2 saniye" in prompt
@@ -41,3 +44,13 @@ def test_turkish_payload_uses_narration_only_shorts_v2_prompt():
     assert payload["font_size"] == 78
     assert payload["stroke_width"] == 3.0
     assert payload["bgm_volume"] == 0.2
+
+
+def test_v2_does_not_add_unknown_mpt_payload_keys():
+    cluster = sample_cluster()
+    legacy = build_payload(cluster, settings(), "tr")
+    v2 = build_v2_payload(cluster, settings(), "tr", 82)
+
+    assert set(v2) == set(legacy)
+    assert "video_terms" not in v2
+    assert v2["video_subject"].startswith(cluster[0].title)
