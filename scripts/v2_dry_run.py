@@ -23,8 +23,16 @@ def main() -> int:
     for language, country, queries in news_editions(settings):
         if language != "tr":
             continue
-        stories = _fetch_queries(queries, language=language, country=country, workers=settings.fetch_workers)
-        clusters = verified_clusters(stories, settings)
+
+        stories = _fetch_queries(
+            queries,
+            language=language,
+            country=country,
+            workers=settings.fetch_workers,
+        )
+        recent_stories = [story for story in stories if story.published >= cutoff]
+        clusters = verified_clusters(recent_stories, settings)
+
         for cluster in clusters:
             decision = evaluate_cluster(cluster)
             facts = [f"{s.publisher}: {s.title}" for s in cluster[:5]]
@@ -32,7 +40,6 @@ def main() -> int:
             item = {
                 "title": cluster[0].title,
                 "published": max(s.published for s in cluster).isoformat(),
-                "recent": max(s.published for s in cluster) >= cutoff,
                 "sources": sorted({s.publisher for s in cluster}),
                 "viral_score": decision.score.score,
                 "decision": decision.score.decision,
@@ -54,8 +61,15 @@ def main() -> int:
             report.append(item)
 
     report.sort(key=lambda x: x["viral_score"], reverse=True)
-    print(json.dumps({"dry_run": True, "count": len(report), "stories": report[:10]}, ensure_ascii=False, indent=2))
-    print("\nSAFE DRY-RUN: MPT submit çağrısı yapılmadı, video render edilmedi.")
+    result = {
+        "dry_run": True,
+        "max_age_minutes": settings.max_age_minutes,
+        "count": len(report),
+        "produce_count": sum(x["decision"] == "produce" for x in report),
+        "stories": report[:10],
+    }
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print("\nSAFE DRY-RUN: yalnızca güncel pencere analiz edildi; MPT submit/render yapılmadı.")
     return 0
 
 
