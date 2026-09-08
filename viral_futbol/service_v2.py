@@ -32,9 +32,6 @@ def build_v2_payload(cluster, settings, language: str, viral_score: int) -> dict
         "İlk iki saniye izleyiciyi yakalamalı; clickbait uğruna gerçeği bozma. Kısa cümleler ve yüksek "
         f"tempo kullan. Yalnızca doğal, tek parça seslendirme metni döndür. İçerik öncelik puanı: {viral_score}/100."
     )
-    # Keep the outgoing MPT contract on fields already used by the legacy
-    # integration. Search hints are folded into video_subject instead of adding
-    # an unverified `video_terms` API field that may be rejected by MPT.
     if media_terms:
         payload["video_subject"] = f"{cluster[0].title} | " + ", ".join(media_terms[:6])
     payload["match_materials_to_script"] = True
@@ -57,7 +54,7 @@ def run_once_v2(settings) -> dict:
         diagnostics = {
             "fetched": 0, "recent": 0, "verified": 0,
             "viral_produce": 0, "viral_hold": 0, "viral_ignore": 0,
-            "duplicates": 0, "submitted": 0, "submission_failed": 0,
+            "duplicates": 0, "previewed": 0, "submitted": 0, "submission_failed": 0,
             "deferred_capacity": 0, "deferred_retry": 0,
             "dry_run": settings.dry_run, "languages": {}, "selected": [],
         }
@@ -67,11 +64,11 @@ def run_once_v2(settings) -> dict:
         for language, country, queries in news_editions(settings):
             stories = _fetch_queries(queries, language=language, country=country, workers=settings.fetch_workers)
             recent = [s for s in stories if s.published >= cutoff]
-            clusters = verified_clusters(stories, settings)
+            clusters = verified_clusters(recent, settings)
             ld = {
                 "fetched": len(stories), "recent": len(recent), "verified": len(clusters),
                 "viral_produce": 0, "viral_hold": 0, "viral_ignore": 0,
-                "duplicates": 0, "submitted": 0, "submission_failed": 0,
+                "duplicates": 0, "previewed": 0, "submitted": 0, "submission_failed": 0,
                 "deferred_capacity": 0, "deferred_retry": 0,
             }
             diagnostics["fetched"] += len(stories)
@@ -102,8 +99,8 @@ def run_once_v2(settings) -> dict:
 
                 if settings.dry_run:
                     submit(payload, settings, idempotency_key=f"viral-futbol:{story_id}")
-                    diagnostics["submitted"] += 1
-                    ld["submitted"] += 1
+                    diagnostics["previewed"] += 1
+                    ld["previewed"] += 1
                     selected["task_id"] = "dry-run"
                     diagnostics["selected"].append(selected)
                     continue
