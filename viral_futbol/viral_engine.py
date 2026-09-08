@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
+from .service import publisher_family
 from .trend_score import TrendScore, TrendSignals, score_trend
 
 
@@ -14,7 +15,7 @@ class ViralDecision:
 
 TRANSFER_WORDS = ("transfer", "bonservis", "kiralık", "imza", "görüşme")
 BREAKING_WORDS = ("son dakika", "açıkladı", "resmi", "resmen", "kap")
-INJURY_WORDS = ("sakat", "sakatlık", "ameliyat", "tedavi", "MR")
+INJURY_WORDS = ("sakat", "sakatlık", "ameliyat", "tedavi", "mr")
 CONTROVERSY_WORDS = ("kriz", "kavga", "ceza", "gerilim", "tartışma", "istifa")
 BIG_MATCH_WORDS = ("derbi", "final", "şampiyonlar ligi", "avrupa ligi")
 MAJOR_ENTITIES = (
@@ -33,14 +34,23 @@ def _contains(text: str, words: tuple[str, ...]) -> bool:
 def evaluate_cluster(cluster, *, social_velocity: float = 0.0) -> ViralDecision:
     """Turn an already corroborated news cluster into a V2 production decision."""
     text = " ".join(story.title for story in cluster)
-    publishers = {getattr(story, "publisher", "").casefold() for story in cluster}
+    publisher_names = {
+        getattr(story, "publisher", "").strip().casefold()
+        for story in cluster
+        if getattr(story, "publisher", "").strip()
+    }
+    publisher_families = {
+        publisher_family(getattr(story, "publisher", ""))
+        for story in cluster
+        if getattr(story, "publisher", "").strip()
+    }
     official = any(
-        re.search(r"(?:galatasaray|fenerbahce|bjk|trabzonspor|tff|uefa|fifa)", publisher)
-        for publisher in publishers
+        re.search(r"(?:galatasaray|fenerbahce|fenerbahçe|bjk|besiktas|beşiktaş|trabzonspor|tff|uefa|fifa)", publisher)
+        for publisher in publisher_names
     )
     newest = max((story.published for story in cluster), default=None)
     signals = TrendSignals(
-        source_count=len(publishers),
+        source_count=len(publisher_families),
         official_source=official,
         transfer=_contains(text, TRANSFER_WORDS),
         breaking=_contains(text, BREAKING_WORDS),
