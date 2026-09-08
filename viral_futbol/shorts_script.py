@@ -17,29 +17,33 @@ class ShortsScript:
 
 
 def build_script_prompt(*, title: str, facts: list[str], team: str = "", target_seconds: int = 40) -> str:
-    """Build the LLM instruction used by the OpenRouter layer.
+    """Build a narration-first prompt for MoneyPrinterTurbo/OpenRouter.
 
-    Facts are passed explicitly to discourage invented transfer fees, quotes,
-    injuries or confirmations. The caller remains responsible for verification.
+    The model must return plain spoken Turkish because the generated response is
+    consumed as narration. Structured timing is expressed as editorial guidance,
+    not as JSON fields that could accidentally be read by TTS.
     """
     facts_text = "\n".join(f"- {fact}" for fact in facts if fact.strip())
     return f"""Sen Viral Futbol için Türkçe YouTube Shorts editörüsün.
-Sadece aşağıdaki doğrulanmış bilgilerden yararlan. Bilgi uydurma, olmayan alıntı,
-bonservis bedeli, sakatlık veya 'resmen açıklandı' ifadesi ekleme.
+Sadece aşağıdaki doğrulanmış bilgilerden yararlan. Bilgi uydurma; olmayan alıntı,
+bonservis bedeli, sakatlık, sağlık sonucu veya kesinleşmemiş bir gelişme için
+'resmen açıklandı' ifadesi ekleme.
 
 Başlık: {title}
 Takım/konu: {team or 'belirtilmedi'}
 Doğrulanmış bilgiler:
 {facts_text or '- Ek doğrulanmış bilgi yok.'}
 
-Yaklaşık {target_seconds} saniyelik metin üret ve yalnızca şu JSON alanlarını döndür:
-hook, event, detail, outcome, cta
+Yaklaşık {target_seconds} saniyelik TEK PARÇA doğal Türkçe seslendirme metni üret.
+Yalnızca seslendirilecek metni döndür. JSON, başlık, madde işareti, zaman kodu,
+sahne etiketi, açıklama veya hashtag döndürme.
 
-Kurallar:
-- hook: ilk 2 saniyede merak uyandır, clickbait uğruna gerçeği bozma.
-- event: 2-10 saniye, haberi net söyle.
-- detail: 10-30 saniye, en önemli doğrulanmış ayrıntılar.
-- outcome: 30-38 saniye, bunun neden önemli olduğunu açıkla.
-- cta: kısa ve doğal bir yorum sorusu.
-- Gereksiz giriş, selamlama ve hashtag kullanma.
+Akış:
+- İlk 2 saniye: gerçeği bozmayan güçlü bir merak kancası.
+- 2-10 saniye: gelişmeyi açık ve hızlı anlat.
+- 10-30 saniye: en önemli doğrulanmış ayrıntıları ver.
+- 30-38 saniye: gelişmenin neden önemli olduğunu söyle.
+- Son 2-3 saniye: kısa ve doğal bir yorum sorusu sor.
+
+Kısa cümleler kullan. Kaynak URL'lerini seslendirme. Gereksiz giriş ve selamlama yapma.
 """.strip()
