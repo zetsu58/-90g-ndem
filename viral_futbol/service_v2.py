@@ -61,7 +61,7 @@ def run_once_v2(settings) -> dict:
             "dry_run": settings.dry_run, "languages": {}, "selected": [],
         }
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=settings.max_age_minutes)
-        available_slots = max(0, max(1, settings.max_inflight_tasks) - store.active_count())
+        available_slots = min(1, max(0, max(1, settings.max_inflight_tasks) - store.active_count()))
 
         for language, country, queries in news_editions(settings):
             stories = _fetch_queries(queries, language=language, country=country, workers=settings.fetch_workers)
