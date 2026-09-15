@@ -9,6 +9,7 @@ from .service import Store, _fetch_queries, build_payload, news_editions, reconc
 from .shorts_script import build_script_prompt
 from .viral_engine import evaluate_cluster
 from .visual_quality import build_visual_quality_plan, prioritized_terms
+from .youtube_publisher import remember_manifest
 
 
 def build_v2_payload(cluster, settings, language: str, viral_score: int) -> dict:
@@ -96,6 +97,14 @@ def run_once_v2(settings) -> dict:
                     "clip_duration": payload.get("video_clip_duration"),
                     "subtitle_font_size": payload.get("font_size"),
                 }
+
+                remember_manifest(
+                    settings.db_path,
+                    story_id,
+                    cluster[0].title,
+                    language,
+                    sorted({s.publisher for s in cluster}),
+                )
 
                 if settings.dry_run:
                     submit(payload, settings, idempotency_key=f"viral-futbol:{story_id}")
