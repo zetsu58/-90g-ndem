@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
-VERSION = "viral-futbol-autopublish-2026-09-15-v7"
+VERSION = "viral-futbol-lite-video-2026-09-15-v8"
 _lock = threading.Lock()
 _state = {"running": False, "last_result": None, "last_error": None, "last_started_at": None, "last_finished_at": None}
 
@@ -54,6 +54,8 @@ def public_status() -> dict:
         **dict(_state),
         "configuration": {
             "dry_run": settings.dry_run,
+            "video_engine": settings.video_engine,
+            "lite_video_dir": settings.lite_video_dir,
             "x_publish_enabled": os.getenv("X_PUBLISH_ENABLED", "false").casefold() in {"1", "true", "yes", "on"},
             "x_credentials_ready": x_credentials_ready(),
             "x_daily_post_limit": int(os.getenv("X_DAILY_POST_LIMIT", "20")),
