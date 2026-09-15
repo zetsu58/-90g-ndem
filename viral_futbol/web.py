@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
-VERSION = "viral-futbol-visual-audio-private-test-2026-09-15-v11"
+VERSION = "viral-futbol-pexels-multivisual-private-2026-09-15-v12"
 _lock = threading.Lock()
 _state = {"running": False, "last_result": None, "last_error": None, "last_started_at": None, "last_finished_at": None}
 

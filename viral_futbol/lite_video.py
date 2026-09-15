@@ -9,6 +9,8 @@ from textwrap import wrap
 
 from PIL import Image, ImageDraw, ImageFont
 
+from .pexels_media import download_pexels_frames
+
 
 def _edge_voice(configured: str, language: str) -> str:
     voice = configured.strip()
@@ -127,7 +129,11 @@ def render_lite_video(
     narration = build_lite_narration(title, sources, language)
     card_path = directory / f"{story_id}.png"
     audio_path = directory / f"{story_id}.mp3"
-    _card(card_path, title, narration, sources)
+    frames = download_pexels_frames(
+        title=title, sources=sources, output_dir=directory, story_id=story_id
+    )
+    if not frames:
+        _card(card_path, title, narration, sources)
     try:
         asyncio.run(_save_speech(narration, _edge_voice(voice_name, language), audio_path))
     except Exception as exc:
@@ -139,12 +145,27 @@ def render_lite_video(
             timeout=60,
         )
 
+    if frames:
+        concat_path = directory / f"{story_id}-frames.txt"
+        sequence = [frames[index % len(frames)] for index in range(6)]
+        rows = []
+        for frame in sequence:
+            rows.extend((f"file '{frame.resolve()}'", "duration 5"))
+        rows.append(f"file '{sequence[-1].resolve()}'")
+        concat_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+        video_input = ["-f", "concat", "-safe", "0", "-i", str(concat_path)]
+        video_filter = "fps=24,format=yuv420p"
+    else:
+        concat_path = None
+        video_input = ["-loop", "1", "-framerate", "24", "-i", str(card_path)]
+        video_filter = "scale=540:960,fade=t=in:st=0:d=0.35,format=yuv420p"
+
     command = [
         "ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1",
-        "-loop", "1", "-framerate", "24", "-i", str(card_path),
+        *video_input,
         "-i", str(audio_path),
         "-f", "lavfi", "-i", "sine=frequency=110:sample_rate=44100",
-        "-vf", "scale=540:960,fade=t=in:st=0:d=0.35,format=yuv420p",
+        "-vf", video_filter,
         "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage", "-threads", "1",
         "-filter_complex", "[1:a]volume=1.0[voice];[2:a]tremolo=f=2.2:d=0.7,volume=0.05[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2[a]",
         "-map", "0:v", "-map", "[a]",
@@ -157,4 +178,8 @@ def render_lite_video(
         raise RuntimeError("Lite video engine did not create a valid MP4")
     card_path.unlink(missing_ok=True)
     audio_path.unlink(missing_ok=True)
+    if concat_path:
+        concat_path.unlink(missing_ok=True)
+    for frame in frames:
+        frame.unlink(missing_ok=True)
     return final_path
