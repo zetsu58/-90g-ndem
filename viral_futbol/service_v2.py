@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
+from .lite_video import render_lite_video
 from .media_engine import build_media_plan, material_terms
 from .retention_engine import build_retention_plan, retention_instruction
 from .service import Store, _fetch_queries, build_payload, news_editions, reconcile_jobs, submit, verified_clusters
@@ -55,7 +56,7 @@ def run_once_v2(settings) -> dict:
         diagnostics = {
             "fetched": 0, "recent": 0, "verified": 0,
             "viral_produce": 0, "viral_hold": 0, "viral_ignore": 0,
-            "duplicates": 0, "previewed": 0, "submitted": 0, "submission_failed": 0,
+            "duplicates": 0, "previewed": 0, "submitted": 0, "generated_lite": 0, "submission_failed": 0,
             "deferred_capacity": 0, "deferred_retry": 0,
             "dry_run": settings.dry_run, "languages": {}, "selected": [],
         }
@@ -69,7 +70,7 @@ def run_once_v2(settings) -> dict:
             ld = {
                 "fetched": len(stories), "recent": len(recent), "verified": len(clusters),
                 "viral_produce": 0, "viral_hold": 0, "viral_ignore": 0,
-                "duplicates": 0, "previewed": 0, "submitted": 0, "submission_failed": 0,
+                "duplicates": 0, "previewed": 0, "submitted": 0, "generated_lite": 0, "submission_failed": 0,
                 "deferred_capacity": 0, "deferred_retry": 0,
             }
             diagnostics["fetched"] += len(stories)
@@ -131,12 +132,26 @@ def run_once_v2(settings) -> dict:
                     ld["deferred_retry"] += 1
                     continue
                 try:
-                    task_id = submit(payload, settings, idempotency_key=f"viral-futbol:{story_id}")
-                    store.mark_submitted(story_id, task_id)
-                    diagnostics["submitted"] += 1
-                    ld["submitted"] += 1
-                    available_slots -= 1
-                    selected["task_id"] = task_id
+                    if settings.video_engine == "lite":
+                        video_path = render_lite_video(
+                            story_id=story_id,
+                            title=cluster[0].title,
+                            sources=sorted({s.publisher for s in cluster}),
+                            language=language,
+                            voice_name=settings.voice_name if language == "tr" else settings.english_voice_name,
+                            output_dir=settings.lite_video_dir,
+                        )
+                        store.mark_complete(story_id, video_path.resolve().as_uri())
+                        diagnostics["generated_lite"] += 1
+                        ld["generated_lite"] += 1
+                        selected["task_id"] = f"lite:{story_id}"
+                    else:
+                        task_id = submit(payload, settings, idempotency_key=f"viral-futbol:{story_id}")
+                        store.mark_submitted(story_id, task_id)
+                        diagnostics["submitted"] += 1
+                        ld["submitted"] += 1
+                        available_slots -= 1
+                        selected["task_id"] = task_id
                     diagnostics["selected"].append(selected)
                 except Exception as exc:
                     store.mark_failed(story_id, f"submission failed: {exc}", settings.retry_delay_seconds)

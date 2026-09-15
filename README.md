@@ -1,6 +1,6 @@
 # 90 Gündem — ViralFutbol Otomasyonu
 
-Anlık Türkçe ve global futbol haberlerini tarar, en az iki bağımsız yayıncıyla doğrular, tekrarları engeller ve doğrulanmış haberleri MoneyPrinterTurbo'ya 9:16 YouTube Shorts görevleri olarak gönderir.
+Anlık Türkçe ve global futbol haberlerini tarar, en az iki bağımsız yayıncıyla doğrular, tekrarları engeller ve doğrulanmış haberlerden 9:16 YouTube Shorts üretir. Varsayılan sıfır bütçeli `lite` motor aynı Render servisinde çalışır; istenirse harici MoneyPrinterTurbo kullanılabilir.
 
 ## Akış
 
@@ -77,3 +77,8 @@ MoneyPrinterTurbo tarafında Upload-Post veya doğrudan YouTube OAuth yayın sa�
 ## Para kazanma, telif ve doğruluk
 
 Sistem maç yayını kliplerini çekmez. Pexels/izinli medya, özgün grafik veya lisanslı içerik kullanılmalıdır. Sistem yalnızca haber metnini okumamalı; doğrulanmış kaynaklardan özgün açıklama ve anlamlı kurgu üretmelidir. Otomatik kaynak eşleşmesi editoryal ve telif sorumluluğunu ortadan kaldırmaz.
+
+
+## Sıfır bütçeli Lite video motoru
+
+Render için varsayılan `VIDEO_ENGINE=lite` profilidir. Doğrulanmış başlıktan özgün kısa anlatım oluşturur, Edge TTS ile seslendirir, 720×1280 markalı bilgi kartına altyazıyı yakar ve FFmpeg ile MP4 üretir. Çıktı mevcut YouTube yayıncısına doğrudan aktarılır. Harici MPT kullanmak için `VIDEO_ENGINE=mpt`, `MPT_API_URL` ve gerekiyorsa `MPT_API_KEY` ayarlanır.

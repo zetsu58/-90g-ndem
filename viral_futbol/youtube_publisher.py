@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sqlite3
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -170,15 +172,19 @@ def remember_manifest(db_path: str, story_id: str, title: str, language: str, so
 
 
 def _download(url: str, destination: Path, api_key: str, timeout: int) -> None:
-    headers = {"User-Agent": "ViralFutbol/1.0"}
-    if api_key:
-        headers["x-api-key"] = api_key
-    request = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(request, timeout=max(30, timeout)) as response, destination.open("wb") as output:
-        while chunk := response.read(1024 * 1024):
-            output.write(chunk)
+    if url.startswith("file://"):
+        source = Path(urllib.request.url2pathname(urllib.parse.urlsplit(url).path))
+        shutil.copyfile(source, destination)
+    else:
+        headers = {"User-Agent": "ViralFutbol/1.0"}
+        if api_key:
+            headers["x-api-key"] = api_key
+        request = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(request, timeout=max(30, timeout)) as response, destination.open("wb") as output:
+            while chunk := response.read(1024 * 1024):
+                output.write(chunk)
     if destination.stat().st_size < 1024 or b"ftyp" not in destination.read_bytes()[:64]:
-        raise ValueError("MoneyPrinterTurbo output is not a valid MP4")
+        raise ValueError("Video output is not a valid MP4")
 
 
 def _metadata(job: dict) -> tuple[str, str, list[str]]:
