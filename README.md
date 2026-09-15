@@ -82,3 +82,8 @@ Sistem maç yayını kliplerini çekmez. Pexels/izinli medya, özgün grafik vey
 ## Sıfır bütçeli Lite video motoru
 
 Render için varsayılan `VIDEO_ENGINE=lite` profilidir. Doğrulanmış başlıktan özgün kısa anlatım oluşturur, Edge TTS ile seslendirir, 720×1280 markalı bilgi kartına altyazıyı yakar ve FFmpeg ile MP4 üretir. Çıktı mevcut YouTube yayıncısına doğrudan aktarılır. Harici MPT kullanmak için `VIDEO_ENGINE=mpt`, `MPT_API_URL` ve gerekiyorsa `MPT_API_KEY` ayarlanır.
+
+
+## Hızlı tek-kaynak modu
+
+V9 sürümünde çoklu kaynak doğrulama kapalıdır. Her döngüde en yeni tekil futbol haberi üretime alınır; tekrar kimliği koruması ve döngü başına bir video sınırı devam eder. İlk YouTube denemeleri `YOUTUBE_PRIVACY_STATUS=private` ile yapılmalıdır.

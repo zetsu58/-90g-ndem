@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from .lite_video import render_lite_video
 from .media_engine import build_media_plan, material_terms
 from .retention_engine import build_retention_plan, retention_instruction
-from .service import Store, _fetch_queries, build_payload, news_editions, reconcile_jobs, submit, verified_clusters
+from .service import Store, _fetch_queries, build_payload, news_editions, reconcile_jobs, submit
 from .shorts_script import build_script_prompt
 from .viral_engine import evaluate_cluster
 from .visual_quality import build_visual_quality_plan, prioritized_terms
@@ -66,7 +66,10 @@ def run_once_v2(settings) -> dict:
         for language, country, queries in news_editions(settings):
             stories = _fetch_queries(queries, language=language, country=country, workers=settings.fetch_workers)
             recent = [s for s in stories if s.published >= cutoff]
-            clusters = verified_clusters(recent, settings)
+            # User-selected fast mode: each unique recent publisher item is eligible.
+            # No multi-source corroboration gate is applied; duplicate protection remains.
+            unique_recent = {s.url or s.title: s for s in recent}
+            clusters = [[s] for s in sorted(unique_recent.values(), key=lambda item: item.published, reverse=True)]
             ld = {
                 "fetched": len(stories), "recent": len(recent), "verified": len(clusters),
                 "viral_produce": 0, "viral_hold": 0, "viral_ignore": 0,
@@ -79,7 +82,7 @@ def run_once_v2(settings) -> dict:
 
             for cluster in clusters:
                 decision = evaluate_cluster(cluster)
-                gate = decision.score.decision
+                gate = "produce"
                 diagnostics[f"viral_{gate}"] += 1
                 ld[f"viral_{gate}"] += 1
                 if gate != "produce":
@@ -144,6 +147,7 @@ def run_once_v2(settings) -> dict:
                         store.mark_complete(story_id, video_path.resolve().as_uri())
                         diagnostics["generated_lite"] += 1
                         ld["generated_lite"] += 1
+                        available_slots -= 1
                         selected["task_id"] = f"lite:{story_id}"
                     else:
                         task_id = submit(payload, settings, idempotency_key=f"viral-futbol:{story_id}")
