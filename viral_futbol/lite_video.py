@@ -77,10 +77,10 @@ def _card(path: Path, title: str, narration: str, sources: list[str]) -> None:
 
     accent = "#38e07b"
     draw.rounded_rectangle((48, 54, 672, 126), radius=24, fill="#0d241a", outline=accent, width=2)
-    draw.text((75, 73), "VİRAL FUTBOL  •  SON DAKİKA", font=_font(27, True), fill=accent)
+    draw.text((75, 73), "90+ GÜNDEM  •  SON DAKİKA", font=_font(27, True), fill=accent)
 
     y = 190
-    title_font = _font(48, True)
+    title_font = _font(42, True)
     for line in _wrapped(title, 24)[:6]:
         draw.text((52, y), line, font=title_font, fill="white")
         y += 61
@@ -88,8 +88,8 @@ def _card(path: Path, title: str, narration: str, sources: list[str]) -> None:
     y = 745
     draw.rounded_rectangle((42, y - 25, 678, 1090), radius=30, fill="#0b1727", outline="#38e07b", width=2)
     hook = narration.split(".")[0].strip() + "."
-    body_font = _font(34, True)
-    for line in _wrapped(hook, 34)[:5]:
+    body_font = _font(29, True)
+    for line in _wrapped(hook, 31)[:5]:
         draw.text((70, y), line, font=body_font, fill="#ffffff")
         y += 48
     draw.rounded_rectangle((70, 1015, 250, 1068), radius=18, fill="#38e07b")
@@ -144,7 +144,7 @@ def render_lite_video(
         "-loop", "1", "-framerate", "24", "-i", str(card_path),
         "-i", str(audio_path),
         "-f", "lavfi", "-i", "sine=frequency=110:sample_rate=44100",
-        "-vf", "scale=600:1067,zoompan=z='min(zoom+0.0008,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=540x960:fps=24,format=yuv420p",
+        "-vf", "scale=540:960,fade=t=in:st=0:d=0.35,format=yuv420p",
         "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage", "-threads", "1",
         "-filter_complex", "[1:a]volume=1.0[voice];[2:a]tremolo=f=2.2:d=0.7,volume=0.05[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2[a]",
         "-map", "0:v", "-map", "[a]",
