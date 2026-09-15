@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 import os
 import threading
+import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
-VERSION = "90gundem-zero-budget-2026-09-05-v6"
+VERSION = "viral-futbol-autopublish-2026-09-15-v7"
 _lock = threading.Lock()
 _state = {"running": False, "last_result": None, "last_error": None, "last_started_at": None, "last_finished_at": None}
 
@@ -46,7 +47,9 @@ def start_cycle() -> bool:
 def public_status() -> dict:
     from .config import Settings
     from .publishers.x_transport import x_credentials_ready
+    from .youtube_publisher import YouTubeConfig
     settings = Settings()
+    youtube = YouTubeConfig.from_env()
     return {
         **dict(_state),
         "configuration": {
@@ -57,6 +60,10 @@ def public_status() -> dict:
             "poll_seconds": settings.poll_seconds,
             "x_max_age_minutes": settings.x_max_age_minutes,
             "shorts_max_age_minutes": settings.shorts_max_age_minutes,
+            "youtube_enabled": youtube.enabled,
+            "youtube_credentials_ready": youtube.ready,
+            "youtube_privacy_status": youtube.privacy_status,
+            "autostart_worker": os.getenv("NEWS_AUTOSTART_WORKER", "true").casefold() in {"1", "true", "yes", "on"},
         },
     }
 
@@ -101,9 +108,18 @@ class Handler(BaseHTTPRequestHandler):
         print(fmt % args, flush=True)
 
 
+def _autonomous_loop() -> None:
+    interval = max(30, int(os.getenv("NEWS_WORKER_INTERVAL_SECONDS", "180")))
+    while True:
+        start_cycle()
+        time.sleep(interval)
+
+
 def main() -> None:
     port = int(os.getenv("PORT", "8080"))
-    print(f"90+ Gundem web service starting: {VERSION} port={port}", flush=True)
+    if os.getenv("NEWS_AUTOSTART_WORKER", "true").casefold() in {"1", "true", "yes", "on"}:
+        threading.Thread(target=_autonomous_loop, name="viral-futbol-worker", daemon=True).start()
+    print(f"ViralFutbol web service starting: {VERSION} port={port}", flush=True)
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
 
 

@@ -3,8 +3,9 @@ from __future__ import annotations
 import os
 
 from viral_futbol.config import Settings
-from viral_futbol.service import run_scan
+from viral_futbol.service_v2 import run_once_v2
 from viral_futbol.worker import AutonomousWorker
+from viral_futbol.youtube_publisher import publish_ready
 from viral_futbol.x_dedupe import XPublishedStore
 from viral_futbol.x_newsroom import fetch_x_newsroom
 from viral_futbol.x_pipeline import publish_verified_cluster
@@ -19,7 +20,7 @@ def _x_daily_limit() -> int:
 
 def cycle() -> dict:
     settings = Settings()
-    result = {"x": {"verified": 0, "published": 0, "duplicates": 0, "budget_blocked": 0, "failed": 0}, "shorts": None}
+    result = {"x": {"verified": 0, "published": 0, "duplicates": 0, "budget_blocked": 0, "failed": 0}, "shorts": None, "youtube": None}
 
     try:
         clusters = fetch_x_newsroom(settings)
@@ -50,14 +51,22 @@ def cycle() -> dict:
         print(f"ViralFutbol X newsroom deferred: {exc}", flush=True)
 
     try:
-        result["shorts"] = run_scan(settings)
+        # V2 adds verification-aligned Viral Score gating, Shorts script,
+        # media/visual planning and retention tuning before MPT submission.
+        result["shorts"] = run_once_v2(settings)
     except Exception as exc:
         result["shorts"] = {"error": str(exc)}
-        print(f"ViralFutbol Shorts scan deferred: {exc}", flush=True)
+        print(f"ViralFutbol Shorts V2 scan deferred: {exc}", flush=True)
+
+    try:
+        result["youtube"] = publish_ready(settings)
+    except Exception as exc:
+        result["youtube"] = {"error": str(exc)}
+        print(f"ViralFutbol YouTube publisher deferred: {exc}", flush=True)
 
     return result
 
 
 if __name__ == "__main__":
-    print("ViralFutbol autonomous worker started", flush=True)
+    print("ViralFutbol V2 autonomous worker started", flush=True)
     AutonomousWorker(cycle).serve_forever()
