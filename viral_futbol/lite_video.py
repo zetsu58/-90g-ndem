@@ -142,9 +142,13 @@ def render_lite_video(
     command = [
         "ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1",
         "-loop", "1", "-framerate", "24", "-i", str(card_path),
-        "-i", str(audio_path),\n        "-f", "lavfi", "-i", "sine=frequency=110:sample_rate=44100",\n        "-vf", "scale=600:1067,zoompan=z='min(zoom+0.0008,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=540x960:fps=24,format=yuv420p",
+        "-i", str(audio_path),
+        "-f", "lavfi", "-i", "sine=frequency=110:sample_rate=44100",
+        "-vf", "scale=600:1067,zoompan=z='min(zoom+0.0008,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=540x960:fps=24,format=yuv420p",
         "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage", "-threads", "1",
-        "-filter_complex", "[1:a]volume=1.0[voice];[2:a]tremolo=f=2.2:d=0.7,volume=0.05[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2[a]",\n        "-map", "0:v", "-map", "[a]",\n        "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart",
+        "-filter_complex", "[1:a]volume=1.0[voice];[2:a]tremolo=f=2.2:d=0.7,volume=0.05[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2[a]",
+        "-map", "0:v", "-map", "[a]",
+        "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart",
         str(final_path),
     ]
     timeout = max(60, int(os.getenv("LITE_VIDEO_TIMEOUT_SECONDS", "180")))
