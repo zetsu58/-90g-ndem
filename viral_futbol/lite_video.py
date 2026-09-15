@@ -35,7 +35,7 @@ def build_lite_narration(title: str, sources: list[str], language: str = "tr") -
         f"Futbol gündemini hareketlendiren yeni gelişme: {clean}. "
         f"{source_line} Kaynaktaki bilgiyi özetliyor; "
         "söylenti veya uydurma ayrıntı eklemiyoruz. Bu gelişme kulüp ve taraftarlar için neden önemli olabilir? "
-        "Yeni doğrulanmış ayrıntılar için Viral Futbol'u takip et ve yorumunu yaz."
+        "Yeni gelişmeler için Viral Futbol'u takip et ve yorumunu yaz."
     )
 
 
@@ -81,7 +81,7 @@ def _card(path: Path, title: str, narration: str, sources: list[str]) -> None:
         draw.text((70, y), line, font=body_font, fill="#e6edf6")
         y += 40
 
-    source_text = "Kaynaklar: " + (", ".join(sources[:3]) if sources else "doğrulanmış yayınlar")
+    source_text = "Kaynak: " + (", ".join(sources[:1]) if sources else "güncel yayın")
     draw.text((52, 1160), source_text[:82], font=_font(20), fill="#9fb1c5")
     draw.text((52, 1205), "#Futbol  #SonDakika  #Shorts", font=_font(24, True), fill=accent)
     image.save(path, "PNG", optimize=True)
