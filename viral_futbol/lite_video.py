@@ -23,19 +23,19 @@ def build_lite_narration(title: str, sources: list[str], language: str = "tr") -
     clean = re.sub(r"\s+", " ", title).strip().rstrip(".")
     publishers = ", ".join(sources[:3])
     if language == "en":
-        source_line = f"Independent reports from {publishers} point to the same development." if publishers else "Independent reports point to the same development."
+        source_line = f"The report published by {publishers} describes this development." if publishers else "A recent report describes this development."
         return (
             f"A new development is moving the football agenda: {clean}. "
-            f"{source_line} We are sharing only the details confirmed across those reports, "
-            "without adding rumours or invented claims. Why could this matter for the club and its supporters? "
+            f"{source_line} We are summarizing the source without adding "
+            "rumours or invented claims. Why could this matter for the club and its supporters? "
             "Follow Viral Futbol for the next verified update, and tell us what you think in the comments."
         )
-    source_line = f"{publishers} tarafından yayımlanan bağımsız haberler aynı gelişmeye işaret ediyor." if publishers else "Bağımsız haberler aynı gelişmeye işaret ediyor."
+    source_line = f"Bu gelişme {publishers} kaynağındaki habere dayanıyor." if publishers else "Bu gelişme güncel bir haber kaynağına dayanıyor."
     return (
         f"Futbol gündemini hareketlendiren yeni gelişme: {clean}. "
-        f"{source_line} Burada yalnızca farklı kaynaklarda ortak biçimde doğrulanan ayrıntıları aktarıyoruz; "
-        "söylenti veya uydurma bilgi eklemiyoruz. Bu gelişme kulüp ve taraftarlar için neden önemli olabilir? "
-        "Yeni doğrulanmış ayrıntılar için Viral Futbol'u takip et ve yorumunu yaz."
+        f"{source_line} Kaynaktaki bilgiyi özetliyor; "
+        "söylenti veya uydurma ayrıntı eklemiyoruz. Bu gelişme kulüp ve taraftarlar için neden önemli olabilir? "
+        "Yeni gelişmeler için Viral Futbol'u takip et ve yorumunu yaz."
     )
 
 
@@ -81,7 +81,7 @@ def _card(path: Path, title: str, narration: str, sources: list[str]) -> None:
         draw.text((70, y), line, font=body_font, fill="#e6edf6")
         y += 40
 
-    source_text = "Kaynaklar: " + (", ".join(sources[:3]) if sources else "doğrulanmış yayınlar")
+    source_text = "Kaynak: " + (", ".join(sources[:1]) if sources else "güncel yayın")
     draw.text((52, 1160), source_text[:82], font=_font(20), fill="#9fb1c5")
     draw.text((52, 1205), "#Futbol  #SonDakika  #Shorts", font=_font(24, True), fill=accent)
     image.save(path, "PNG", optimize=True)
@@ -124,11 +124,11 @@ def render_lite_video(
         )
 
     command = [
-        "ffmpeg", "-y", "-loglevel", "error",
-        "-loop", "1", "-framerate", "30", "-i", str(card_path),
+        "ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1",
+        "-loop", "1", "-framerate", "24", "-i", str(card_path),
         "-i", str(audio_path),
-        "-vf", "scale=720:1280,format=yuv420p",
-        "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
+        "-vf", "scale=540:960,format=yuv420p",
+        "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage", "-threads", "1",
         "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart",
         str(final_path),
     ]
