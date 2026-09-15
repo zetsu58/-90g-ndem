@@ -61,25 +61,41 @@ def _card(path: Path, title: str, narration: str, sources: list[str]) -> None:
     for y in range(height):
         ratio = y / height
         draw.line((0, y, width, y), fill=(7 + int(8 * ratio), 17 + int(25 * ratio), 31 + int(35 * ratio)))
-    draw.ellipse((-180, -120, 460, 520), fill="#123a2b")
+    # Branded football visual: stadium lights, pitch, ball and speed lines.
+    draw.rectangle((0, 120, width, 690), fill="#0b3d2b")
+    for x in range(0, width, 90):
+        draw.polygon(((x, 120), (x + 45, 120), (x + 150, 690), (x + 70, 690)), fill="#0f5138")
+    draw.arc((90, 270, 630, 850), 185, 355, fill="#d5ffe4", width=7)
+    draw.line((360, 420, 360, 690), fill="#d5ffe4", width=6)
+    draw.ellipse((278, 458, 442, 622), fill="#f8fafc", outline="#111827", width=8)
+    draw.polygon(((360, 480), (397, 507), (383, 553), (337, 553), (323, 507)), fill="#111827")
+    for px, py in ((315, 474), (408, 478), (425, 565), (293, 568)):
+        draw.ellipse((px - 18, py - 18, px + 18, py + 18), fill="#111827")
+    for offset in range(5):
+        draw.line((35, 210 + offset * 55, 250, 250 + offset * 55), fill="#38e07b", width=5)
     draw.ellipse((470, 760, 930, 1320), fill="#112d55")
 
     accent = "#38e07b"
     draw.rounded_rectangle((48, 54, 672, 126), radius=24, fill="#0d241a", outline=accent, width=2)
-    draw.text((75, 73), "VİRAL FUTBOL  •  SON DAKİKA", font=_font(27, True), fill=accent)
+    draw.text((75, 73), "90+ GÜNDEM  •  SON DAKİKA", font=_font(27, True), fill=accent)
 
     y = 190
-    title_font = _font(48, True)
+    title_font = _font(42, True)
     for line in _wrapped(title, 24)[:6]:
         draw.text((52, y), line, font=title_font, fill="white")
         y += 61
 
-    y = max(y + 45, 600)
-    draw.rounded_rectangle((42, y - 25, 678, 1090), radius=30, fill="#0b1727", outline="#294158", width=2)
-    body_font = _font(27)
-    for line in _wrapped(narration, 43)[:13]:
-        draw.text((70, y), line, font=body_font, fill="#e6edf6")
-        y += 40
+    y = 745
+    draw.rounded_rectangle((42, y - 25, 678, 1090), radius=30, fill="#0b1727", outline="#38e07b", width=2)
+    hook = narration.split(".")[0].strip() + "."
+    body_font = _font(29, True)
+    for line in _wrapped(hook, 31)[:5]:
+        draw.text((70, y), line, font=body_font, fill="#ffffff")
+        y += 48
+    draw.rounded_rectangle((70, 1015, 250, 1068), radius=18, fill="#38e07b")
+    draw.text((95, 1028), "GÜNDEM", font=_font(21, True), fill="#07111f")
+    draw.rounded_rectangle((270, 1015, 475, 1068), radius=18, fill="#ffffff")
+    draw.text((294, 1028), "HIZLI ÖZET", font=_font(21, True), fill="#07111f")
 
     source_text = "Kaynak: " + (", ".join(sources[:1]) if sources else "güncel yayın")
     draw.text((52, 1160), source_text[:82], font=_font(20), fill="#9fb1c5")
@@ -89,7 +105,7 @@ def _card(path: Path, title: str, narration: str, sources: list[str]) -> None:
 
 async def _save_speech(text: str, voice: str, path: Path) -> None:
     import edge_tts
-    communicate = edge_tts.Communicate(text=text, voice=voice, rate="+3%")
+    communicate = edge_tts.Communicate(text=text, voice=voice, rate="+16%", pitch="+6Hz")
     await communicate.save(str(path))
 
 
@@ -127,8 +143,11 @@ def render_lite_video(
         "ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1",
         "-loop", "1", "-framerate", "24", "-i", str(card_path),
         "-i", str(audio_path),
-        "-vf", "scale=540:960,format=yuv420p",
+        "-f", "lavfi", "-i", "sine=frequency=110:sample_rate=44100",
+        "-vf", "scale=540:960,fade=t=in:st=0:d=0.35,format=yuv420p",
         "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage", "-threads", "1",
+        "-filter_complex", "[1:a]volume=1.0[voice];[2:a]tremolo=f=2.2:d=0.7,volume=0.05[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2[a]",
+        "-map", "0:v", "-map", "[a]",
         "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart",
         str(final_path),
     ]
