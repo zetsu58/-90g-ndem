@@ -38,6 +38,8 @@ def _languages() -> tuple[str, ...]:
 class Settings:
     mpt_url: str = os.getenv("MPT_API_URL", "http://127.0.0.1:8080/api/v1")
     mpt_api_key: str = os.getenv("MPT_API_KEY", "")
+    video_engine: str = os.getenv("VIDEO_ENGINE", "lite").strip().casefold()
+    lite_video_dir: str = os.getenv("LITE_VIDEO_DIR", "storage/videos")
     x_queries: tuple[str, ...] = field(default_factory=lambda: _csv("X_NEWS_QUERIES", DEFAULT_X_QUERIES))
     queries: tuple[str, ...] = field(default_factory=lambda: _csv("NEWS_QUERIES", DEFAULT_QUERIES))
     global_queries: tuple[str, ...] = field(default_factory=lambda: _csv("NEWS_GLOBAL_QUERIES", DEFAULT_GLOBAL_QUERIES))
