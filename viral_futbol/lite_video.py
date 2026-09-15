@@ -112,7 +112,16 @@ def render_lite_video(
     card_path = directory / f"{story_id}.png"
     audio_path = directory / f"{story_id}.mp3"
     _card(card_path, title, narration, sources)
-    asyncio.run(_save_speech(narration, _edge_voice(voice_name, language), audio_path))
+    try:
+        asyncio.run(_save_speech(narration, _edge_voice(voice_name, language), audio_path))
+    except Exception as exc:
+        offline_voice = "tr" if language == "tr" else "en-us"
+        print(f"ViralFutbol Edge TTS unavailable, using offline voice: {exc}", flush=True)
+        subprocess.run(
+            ["espeak-ng", "-v", offline_voice, "-s", "165", "-w", str(audio_path), narration],
+            check=True,
+            timeout=60,
+        )
 
     command = [
         "ffmpeg", "-y", "-loglevel", "error",
