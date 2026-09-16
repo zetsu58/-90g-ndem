@@ -37,7 +37,10 @@ def _normalized(value: str) -> str:
 
 def _entities(title: str) -> list[str]:
     found = [club for club in CLUBS if _normalized(club) in _normalized(title)]
-    proper = re.findall(r"\b[A-ZÇĞİÖŞÜ][a-zçğıöşü]+(?:\s+[A-ZÇĞİÖŞÜ][a-zçğıöşü]+){0,2}", title)
+    remainder = title
+    for club in found:
+        remainder = re.sub(re.escape(club), " ", remainder, flags=re.IGNORECASE)
+    proper = re.findall(r"\b[A-ZÇĞİÖŞÜ][a-zçğıöşü]+(?:\s+[A-ZÇĞİÖŞÜ][a-zçğıöşü]+){0,1}", remainder)
     for item in proper:
         if _normalized(item) not in STOP_WORDS and item not in found:
             found.append(item)
