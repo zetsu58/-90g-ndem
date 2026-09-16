@@ -22,22 +22,20 @@ def _edge_voice(configured: str, language: str) -> str:
 
 
 def build_lite_narration(title: str, sources: list[str], language: str = "tr") -> str:
-    clean = re.sub(r"\s+", " ", title).strip().rstrip(".")
-    publishers = ", ".join(sources[:3])
+    del sources
+    clean = re.sub(r"\\s+", " ", title).strip().rstrip(".")
     if language == "en":
-        source_line = f"The report published by {publishers} describes this development." if publishers else "A recent report describes this development."
         return (
-            f"A new development is moving the football agenda: {clean}. "
-            f"{source_line} We are summarizing the source without adding "
-            "rumours or invented claims. Why could this matter for the club and its supporters? "
-            "Follow Viral Futbol for the next verified update, and tell us what you think in the comments."
+            f"Breaking football news: {clean}. "
+            "This development could directly affect the club's next move. "
+            "All eyes are now on the official decision. What do you think? "
+            "Follow 90 Plus Gundem for the next update."
         )
-    source_line = f"Bu gelişme {publishers} kaynağındaki habere dayanıyor." if publishers else "Bu gelişme güncel bir haber kaynağına dayanıyor."
     return (
-        f"Futbol gündemini hareketlendiren yeni gelişme: {clean}. "
-        f"{source_line} Kaynaktaki bilgiyi özetliyor; "
-        "söylenti veya uydurma ayrıntı eklemiyoruz. Bu gelişme kulüp ve taraftarlar için neden önemli olabilir? "
-        "Yeni gelişmeler için Viral Futbol'u takip et ve yorumunu yaz."
+        f"Futbol gündeminde sıcak gelişme! {clean}. "
+        "Bu gelişme kulübün planlarını doğrudan etkileyebilir. "
+        "Şimdi gözler atılacak resmi adımda. Sence bu karar doğru mu? "
+        "Yeni gelişmeler için 90+ Gündem'i takip et."
     )
 
 
@@ -99,8 +97,7 @@ def _card(path: Path, title: str, narration: str, sources: list[str]) -> None:
     draw.rounded_rectangle((270, 1015, 475, 1068), radius=18, fill="#ffffff")
     draw.text((294, 1028), "HIZLI ÖZET", font=_font(21, True), fill="#07111f")
 
-    source_text = "Kaynak: " + (", ".join(sources[:1]) if sources else "güncel yayın")
-    draw.text((52, 1160), source_text[:82], font=_font(20), fill="#9fb1c5")
+    draw.text((52, 1160), "90+ Gündem  •  Futbolun nabzı", font=_font(22, True), fill="#e7edf4")
     draw.text((52, 1205), "#Futbol  #SonDakika  #Shorts", font=_font(24, True), fill=accent)
     image.save(path, "PNG", optimize=True)
 
@@ -164,10 +161,10 @@ def render_lite_video(
         "ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1",
         *video_input,
         "-i", str(audio_path),
-        "-f", "lavfi", "-i", "sine=frequency=96:sample_rate=44100",
+        "-f", "lavfi", "-i", "aevalsrc=0.55*sin(2*PI*96*t)+0.22*sin(2*PI*144*t)+0.12*sin(2*PI*192*t):s=44100",
         "-vf", video_filter,
         "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage", "-threads", "1",
-        "-filter_complex", "[1:a]volume=1.0[voice];[2:a]tremolo=f=2.6:d=0.72,volume=0.065[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2[a]",
+        "-filter_complex", "[1:a]volume=1.0[voice];[2:a]tremolo=f=2.4:d=0.60,highpass=f=70,lowpass=f=950,volume=0.18[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2:normalize=0,alimiter=limit=0.95[a]",
         "-map", "0:v", "-map", "[a]",
         "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart",
         str(final_path),
