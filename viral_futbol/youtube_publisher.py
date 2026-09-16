@@ -191,15 +191,12 @@ def _metadata(job: dict) -> tuple[str, str, list[str]]:
     language = str(job.get("language") or "tr")
     raw_title = str(job.get("title") or "Futbol gündeminde son dakika").strip()
     title = raw_title[:92].rstrip(" #") + " #Shorts"
-    sources = json.loads(job.get("sources_json") or "[]")
     if language == "en":
         description = "Verified football update with original narration and editing.\n\n#Football #Shorts"
         tags = ["football", "football news", "shorts"]
     else:
         description = "Doğrulanmış futbol gündemi; özgün anlatım ve kurgu.\n\n#Futbol #SonDakika #Shorts"
         tags = ["futbol", "son dakika", "futbol haberleri", "shorts"]
-    if sources:
-        description += "\n\nKaynak yayıncılar: " + ", ".join(str(x) for x in sources[:5])
     return title[:100], description[:5000], tags
 
 
