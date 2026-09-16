@@ -65,7 +65,7 @@ def _search_urls(api_key: str, query: str) -> list[str]:
     return urls
 
 
-def _render_frame(photo_path: Path, output_path: Path, title: str, source: str, index: int, total: int) -> None:
+def _render_frame(photo_path: Path, output_path: Path, title: str, phrase: str, source: str, index: int, total: int) -> None:
     with Image.open(photo_path) as opened:
         image = ImageOps.fit(opened.convert("RGB"), (540, 960), method=Image.Resampling.LANCZOS)
     image = image.convert("RGBA")
@@ -89,10 +89,11 @@ def _render_frame(photo_path: Path, output_path: Path, title: str, source: str, 
     draw.rounded_rectangle((28, 630, 292, 680), radius=15, fill=accent)
     draw.text((48, 644), label, font=_font(18, True), fill="#06101c")
 
+    display_text = title if index == 0 else phrase
     y = 710
-    for line in _lines(title, 27, 4):
-        draw.text((29, y), line, font=_font(32, True), fill="white", stroke_width=2, stroke_fill="#07111f")
-        y += 42
+    for line in _lines(display_text, 29, 4):
+        draw.text((29, y), line, font=_font(30, True), fill="white", stroke_width=2, stroke_fill="#07111f")
+        y += 40
 
     draw.text((30, 900), ("Kaynak: " + source)[:55], font=_font(17), fill="#e7edf4")
     draw.text((380, 900), "Görsel: Pexels", font=_font(15), fill="#c5d1df")
@@ -104,7 +105,7 @@ def _render_frame(photo_path: Path, output_path: Path, title: str, source: str, 
 
 
 def download_pexels_frames(
-    *, title: str, sources: list[str], output_dir: Path, story_id: str, limit: int = 6
+    *, title: str, narration: str, sources: list[str], output_dir: Path, story_id: str, limit: int = 8
 ) -> list[Path]:
     api_key = os.getenv("PEXELS_API_KEY", "").strip()
     if not api_key:
@@ -125,6 +126,11 @@ def download_pexels_frames(
 
     frames: list[Path] = []
     source = sources[0] if sources else "güncel yayın"
+    phrases = [
+        part.strip() + ("?" if "?" in part else ".")
+        for part in re.split(r"[.!?]+", narration)
+        if part.strip()
+    ] or [title]
     headers = {"User-Agent": "90Gundem/1.0"}
     for index, url in enumerate(urls[:limit]):
         raw_path = output_dir / f"{story_id}-pexels-{index}.jpg"
@@ -136,7 +142,8 @@ def download_pexels_frames(
             if len(raw) > 10_000_000:
                 continue
             raw_path.write_bytes(raw)
-            _render_frame(raw_path, frame_path, title, source, index, min(limit, len(urls)))
+            phrase = phrases[index % len(phrases)]
+            _render_frame(raw_path, frame_path, title, phrase, source, index, min(limit, len(urls)))
             frames.append(frame_path)
         except Exception as exc:
             print(f"ViralFutbol Pexels image deferred: {type(exc).__name__}: {exc}", flush=True)

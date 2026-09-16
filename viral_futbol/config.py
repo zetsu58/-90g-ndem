@@ -52,7 +52,7 @@ class Settings:
     similarity: float = float(os.getenv("NEWS_TITLE_SIMILARITY", "0.52"))
     dry_run: bool = os.getenv("NEWS_DRY_RUN", "true").lower() in {"1", "true", "yes"}
     db_path: str = os.getenv("NEWS_DB_PATH", "storage/viral_futbol.sqlite3")
-    voice_name: str = os.getenv("NEWS_VOICE", "tr-TR-AhmetNeural-Male")
+    voice_name: str = os.getenv("NEWS_VOICE", "tr-TR-EmelNeural")
     english_voice_name: str = os.getenv("NEWS_EN_VOICE", "en-US-GuyNeural-Male")
     video_source: str = os.getenv("NEWS_VIDEO_SOURCE", "pexels")
     video_clip_duration: int = int(os.getenv("NEWS_VIDEO_CLIP_DURATION", "5"))
