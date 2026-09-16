@@ -68,7 +68,8 @@ def _commons_urls(query: str) -> list[tuple[str, str]]:
         info = (page.get("imageinfo") or [{}])[0]
         if not str(info.get("mime") or "").startswith("image/"):
             continue
-        if required and not any(token in _normalized(str(page.get("title") or "")) for token in required):
+        page_title = _normalized(str(page.get("title") or ""))
+        if required and not all(token in page_title for token in required):
             continue
         url = info.get("thumburl") or info.get("url")
         if url:
@@ -78,10 +79,16 @@ def _commons_urls(query: str) -> list[tuple[str, str]]:
 
 def _search_relevant(title: str, limit: int) -> list[tuple[str, str]]:
     results: list[tuple[str, str]] = []
+    club_keys = {_normalized(club) for club in CLUBS}
     for entity in _entities(title):
-        for query in (entity, f"{entity} football", f"{entity} logo"):
+        is_club = _normalized(entity) in club_keys
+        queries = (f"{entity} logo",) if is_club else (entity,)
+        for query in queries:
             try:
                 for item in _commons_urls(query):
+                    page_title = _normalized(item[1])
+                    if is_club and not any(word in page_title for word in ("logo", "crest", "badge", "emblem")):
+                        continue
                     if item[0] not in {url for url, _ in results}:
                         results.append(item)
                     if len(results) >= limit:
@@ -116,9 +123,15 @@ def _render_frame(photo_path: Path, output_path: Path, title: str, phrase: str, 
         draw_shade.line((0, y, 540, y), fill=(2, 8, 18, alpha))
     image = Image.alpha_composite(image, shade).convert("RGB")
     draw = ImageDraw.Draw(image)
-    accent = "#38e07b"
-    draw.rounded_rectangle((22, 22, 518, 76), radius=16, fill="#07111f", outline=accent, width=2)
-    draw.text((42, 36), "90+ GÜNDEM  •  SON DAKİKA", font=_font(20, True), fill=accent)
+    accent = "#ff2438"
+    draw.rounded_rectangle((22, 18, 518, 86), radius=16, fill="#050505", outline=accent, width=2)
+    logo_path = Path(__file__).resolve().parents[1] / "assets" / "90gundem-logo-v2.png"
+    if logo_path.exists():
+        with Image.open(logo_path) as logo_opened:
+            logo = ImageOps.contain(logo_opened.convert("RGBA"), (58, 58), method=Image.Resampling.LANCZOS)
+        image.paste(logo, (31, 23), logo)
+        draw = ImageDraw.Draw(image)
+    draw.text((102, 40), "SON DAKİKA  •  90+ GÜNDEM", font=_font(18, True), fill="white")
     draw.rounded_rectangle((28, 630, 340, 680), radius=15, fill=accent)
     draw.text((48, 644), _story_label(title), font=_font(18, True), fill="#06101c")
     display_text = title if index == 0 else phrase
@@ -139,14 +152,8 @@ def _render_frame(photo_path: Path, output_path: Path, title: str, phrase: str, 
 def download_pexels_frames(*, title: str, narration: str, sources: list[str], output_dir: Path, story_id: str, limit: int = 8) -> list[Path]:
     del sources
     media = _search_relevant(title, limit)
-    if len(media) < 2:
-        api_key = os.getenv("PEXELS_API_KEY", "").strip()
-        entities = _entities(title)
-        if api_key and entities:
-            try:
-                media.extend(_search_pexels(api_key, entities[0] + " football"))
-            except Exception as exc:
-                print(f"ViralFutbol Pexels search deferred: {type(exc).__name__}: {exc}", flush=True)
+    # Never fill missing slots with generic stock imagery. A relevant crest/person
+    # repeated with changing copy is safer than showing the wrong club or person.
     unique: list[tuple[str, str]] = []
     for item in media:
         if item[0] not in {url for url, _ in unique}:
@@ -155,7 +162,8 @@ def download_pexels_frames(*, title: str, narration: str, sources: list[str], ou
             break
     phrases = [part.strip() + ("?" if "?" in part else ".") for part in re.split(r"[.!?]+", narration) if part.strip()] or [title]
     frames: list[Path] = []
-    for index, (url, credit) in enumerate(unique):
+    selected = [unique[index % len(unique)] for index in range(max(5, len(unique)))] if unique else []
+    for index, (url, credit) in enumerate(selected[:limit]):
         raw_path = output_dir / f"{story_id}-media-{index}"
         frame_path = output_dir / f"{story_id}-frame-{index}.jpg"
         try:
@@ -165,7 +173,7 @@ def download_pexels_frames(*, title: str, narration: str, sources: list[str], ou
             if len(raw) > 10_000_000:
                 continue
             raw_path.write_bytes(raw)
-            _render_frame(raw_path, frame_path, title, phrases[index % len(phrases)], credit, index, len(unique))
+            _render_frame(raw_path, frame_path, title, phrases[index % len(phrases)], credit, index, len(selected[:limit]))
             frames.append(frame_path)
         except Exception as exc:
             print(f"ViralFutbol relevant image deferred: {type(exc).__name__}: {exc}", flush=True)
