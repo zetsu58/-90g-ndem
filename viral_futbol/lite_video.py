@@ -26,16 +26,16 @@ def build_lite_narration(title: str, sources: list[str], language: str = "tr") -
     clean = re.sub(r"\s+", " ", title).strip().rstrip(".")
     if language == "en":
         return (
-            f"Breaking football news: {clean}. "
-            "This development could directly affect the club's next move. "
-            "All eyes are now on the official decision. What do you think? "
-            "Follow 90 Plus Gundem for the next update."
+            f"Stop scrolling! A major football update is here: {clean}! "
+            "This could change the club's next move completely. "
+            "All eyes are on the official announcement now! What is your take? "
+            "Follow 90 Plus Gundem and stay ahead of the game!"
         )
     return (
-        f"Futbol gündeminde sıcak gelişme! {clean}. "
-        "Bu gelişme kulübün planlarını doğrudan etkileyebilir. "
-        "Şimdi gözler atılacak resmi adımda. Sence bu karar doğru mu? "
-        "Yeni gelişmeler için 90+ Gündem'i takip et."
+        f"Dur, geçme! Futbol gündemini sarsan flaş gelişme: {clean}! "
+        "Bu hamle kulübün bütün planını değiştirebilir. "
+        "Şimdi gözler resmi açıklamada! Sence doğru karar mı? "
+        "Yorumunu yaz; gündemi kaçırmamak için 90+ Gündem'i takip et!"
     )
 
 
@@ -111,7 +111,7 @@ def _card(path: Path, title: str, narration: str, sources: list[str]) -> None:
 
 async def _save_speech(text: str, voice: str, path: Path) -> None:
     import edge_tts
-    communicate = edge_tts.Communicate(text=text, voice=voice, rate="+18%", pitch="+4Hz")
+    communicate = edge_tts.Communicate(text=text, voice=voice, rate="+27%", pitch="+7Hz", volume="+15%")
     await communicate.save(str(path))
 
 
@@ -154,26 +154,34 @@ def render_lite_video(
         sequence = [frames[index % len(frames)] for index in range(8)]
         rows = []
         for frame in sequence:
-            rows.extend((f"file '{frame.resolve()}'", "duration 2.8"))
+            rows.extend((f"file '{frame.resolve()}'", "duration 2.2"))
         rows.append(f"file '{sequence[-1].resolve()}'")
         concat_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
         video_input = ["-f", "concat", "-safe", "0", "-i", str(concat_path)]
-        video_filter = "scale=720:1280:flags=lanczos,fps=30,format=yuv420p"
+        video_filter = (
+            "scale=800:1422:flags=lanczos,"
+            "crop=720:1280:x='40+20*sin(t*0.8)':y='71+28*cos(t*0.6)',"
+            "fade=t=in:st=0:d=0.20,fps=30,format=yuv420p"
+        )
     else:
         concat_path = None
         video_input = ["-loop", "1", "-framerate", "24", "-i", str(card_path)]
-        video_filter = "scale=720:1280:flags=lanczos,fade=t=in:st=0:d=0.35,format=yuv420p"
+        video_filter = (
+            "scale=800:1422:flags=lanczos,"
+            "crop=720:1280:x='40+20*sin(t*0.8)':y='71+28*cos(t*0.6)',"
+            "fade=t=in:st=0:d=0.20,fps=30,format=yuv420p"
+        )
 
     command = [
         "ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1",
         *video_input,
         "-i", str(audio_path),
-        "-f", "lavfi", "-i", "aevalsrc=0.55*sin(2*PI*96*t)+0.22*sin(2*PI*144*t)+0.12*sin(2*PI*192*t):s=44100",
+        "-f", "lavfi", "-i", "aevalsrc=0.30*sin(2*PI*55*t)+0.12*sin(2*PI*110*t)+0.08*sin(2*PI*165*t):s=44100",
         "-vf", video_filter,
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "1",
-        "-filter_complex", "[1:a]volume=1.0[voice];[2:a]tremolo=f=2.4:d=0.60,highpass=f=70,lowpass=f=950,volume=0.18[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2:normalize=0,alimiter=limit=0.95[a]",
+        "-filter_complex", "[1:a]volume=1.20,acompressor=threshold=0.15:ratio=2.5:attack=5:release=80[voice];[2:a]highpass=f=45,lowpass=f=1400,tremolo=f=4:d=0.85,acompressor=threshold=0.2:ratio=3:attack=5:release=80,volume=0.34[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=1:normalize=0,alimiter=limit=0.95[a]",
         "-map", "0:v", "-map", "[a]",
-        "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart",
+        "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart",
         str(final_path),
     ]
     timeout = max(60, int(os.getenv("LITE_VIDEO_TIMEOUT_SECONDS", "180")))
