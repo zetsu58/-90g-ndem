@@ -107,7 +107,7 @@ def _card(path: Path, title: str, narration: str, sources: list[str]) -> None:
 
 async def _save_speech(text: str, voice: str, path: Path) -> None:
     import edge_tts
-    communicate = edge_tts.Communicate(text=text, voice=voice, rate="+16%", pitch="+6Hz")
+    communicate = edge_tts.Communicate(text=text, voice=voice, rate="+18%", pitch="+4Hz")
     await communicate.save(str(path))
 
 
@@ -130,7 +130,7 @@ def render_lite_video(
     card_path = directory / f"{story_id}.png"
     audio_path = directory / f"{story_id}.mp3"
     frames = download_pexels_frames(
-        title=title, sources=sources, output_dir=directory, story_id=story_id
+        title=title, narration=narration, sources=sources, output_dir=directory, story_id=story_id
     )
     if not frames:
         _card(card_path, title, narration, sources)
@@ -147,10 +147,10 @@ def render_lite_video(
 
     if frames:
         concat_path = directory / f"{story_id}-frames.txt"
-        sequence = [frames[index % len(frames)] for index in range(6)]
+        sequence = [frames[index % len(frames)] for index in range(8)]
         rows = []
         for frame in sequence:
-            rows.extend((f"file '{frame.resolve()}'", "duration 5"))
+            rows.extend((f"file '{frame.resolve()}'", "duration 3.5"))
         rows.append(f"file '{sequence[-1].resolve()}'")
         concat_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
         video_input = ["-f", "concat", "-safe", "0", "-i", str(concat_path)]
@@ -164,10 +164,10 @@ def render_lite_video(
         "ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1",
         *video_input,
         "-i", str(audio_path),
-        "-f", "lavfi", "-i", "sine=frequency=110:sample_rate=44100",
+        "-f", "lavfi", "-i", "sine=frequency=96:sample_rate=44100",
         "-vf", video_filter,
         "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage", "-threads", "1",
-        "-filter_complex", "[1:a]volume=1.0[voice];[2:a]tremolo=f=2.2:d=0.7,volume=0.05[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2[a]",
+        "-filter_complex", "[1:a]volume=1.0[voice];[2:a]tremolo=f=2.6:d=0.72,volume=0.065[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2[a]",
         "-map", "0:v", "-map", "[a]",
         "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart",
         str(final_path),
