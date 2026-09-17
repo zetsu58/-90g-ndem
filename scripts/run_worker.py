@@ -9,6 +9,7 @@ from viral_futbol.youtube_publisher import publish_ready
 from viral_futbol.x_dedupe import XPublishedStore
 from viral_futbol.x_newsroom import fetch_x_newsroom
 from viral_futbol.x_pipeline import publish_verified_cluster
+from viral_futbol.trend_pipeline import trend_gate
 
 
 def _x_daily_limit() -> int:
@@ -20,15 +21,24 @@ def _x_daily_limit() -> int:
 
 def cycle() -> dict:
     settings = Settings()
-    result = {"x": {"verified": 0, "published": 0, "duplicates": 0, "budget_blocked": 0, "failed": 0}, "shorts": None, "youtube": None}
+    result = {"trend_gate": None, "x": {"verified": 0, "published": 0, "duplicates": 0, "budget_blocked": 0, "failed": 0}, "shorts": None, "youtube": None}
+
+    try:
+        result["trend_gate"] = trend_gate(settings)
+    except Exception as exc:
+        result["trend_gate"] = {"error": str(exc), "accepted": 0}
+        print(f"ViralFutbol trend gate deferred: {exc}", flush=True)
 
     try:
         clusters = fetch_x_newsroom(settings)
         result["x"]["verified"] = len(clusters)
         limit = _x_daily_limit()
+        accepted_titles = {item["title"] for item in (result.get("trend_gate") or {}).get("top", [])}
         with XPublishedStore(settings.db_path) as x_store:
             for cluster in clusters:
                 title = cluster[0].title
+                if accepted_titles and title not in accepted_titles:
+                    continue
                 if x_store.contains(title):
                     result["x"]["duplicates"] += 1
                     continue
@@ -51,8 +61,6 @@ def cycle() -> dict:
         print(f"ViralFutbol X newsroom deferred: {exc}", flush=True)
 
     try:
-        # V2 adds verification-aligned Viral Score gating, Shorts script,
-        # media/visual planning and retention tuning before MPT submission.
         result["shorts"] = run_once_v2(settings)
     except Exception as exc:
         result["shorts"] = {"error": str(exc)}
@@ -68,5 +76,5 @@ def cycle() -> dict:
 
 
 if __name__ == "__main__":
-    print("ViralFutbol V2 autonomous worker started", flush=True)
+    print("ViralFutbol V2 autonomous worker + trend gate started", flush=True)
     AutonomousWorker(cycle).serve_forever()
