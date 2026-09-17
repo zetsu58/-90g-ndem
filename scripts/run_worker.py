@@ -6,6 +6,7 @@ from viral_futbol.config import Settings
 from viral_futbol.service_v2 import run_once_v2
 from viral_futbol.worker import AutonomousWorker
 from viral_futbol.youtube_publisher import publish_ready
+from viral_futbol.youtube_performance import collect_youtube_performance
 from viral_futbol.x_dedupe import XPublishedStore
 from viral_futbol.x_newsroom import fetch_x_newsroom
 from viral_futbol.x_pipeline import publish_verified_cluster
@@ -21,7 +22,7 @@ def _x_daily_limit() -> int:
 
 def cycle() -> dict:
     settings = Settings()
-    result = {"trend_gate": None, "x": {"verified": 0, "published": 0, "duplicates": 0, "budget_blocked": 0, "gate_blocked": 0, "failed": 0}, "shorts": None, "youtube": None}
+    result = {"trend_gate": None, "x": {"verified": 0, "published": 0, "duplicates": 0, "budget_blocked": 0, "gate_blocked": 0, "failed": 0}, "shorts": None, "youtube": None, "performance": None}
 
     try:
         result["trend_gate"] = trend_gate(settings)
@@ -84,8 +85,7 @@ def cycle() -> dict:
     else:
         result["youtube"] = {"deferred": True, "reason": "shorts_scan_failed"}
 
-    return result
-
+    # Performance collection is deliberately non-blocking: analytics/OAuth trouble\n    # must never stop news scanning, rendering, or publishing.\n    try:\n        result["performance"] = collect_youtube_performance(settings.db_path)\n    except Exception as exc:\n        result["performance"] = {"error": str(exc), "deferred": True}\n        print(f"ViralFutbol performance collector deferred: {exc}", flush=True)\n\n    return result\n
 
 if __name__ == "__main__":
     print("ViralFutbol V2 autonomous worker + fail-closed quality gates started", flush=True)
