@@ -91,7 +91,7 @@ def _validate_short(path:Path)->dict:
     except (TypeError,ValueError): duration=0
     try: min_seconds=max(5,float(os.getenv("SHORTS_MIN_DURATION_SECONDS","12")))\n    except ValueError: min_seconds=12.0\n    try: max_seconds=min(180,float(os.getenv("SHORTS_MAX_DURATION_SECONDS","70")))\n    except ValueError: max_seconds=70.0
     if duration<min_seconds or duration>max_seconds: raise ValueError(f"Quality gate: duration {duration:.1f}s outside {min_seconds:.0f}-{max_seconds:.0f}s")
-    if width<540 or height<960: raise ValueError(f"Quality gate: resolution too low ({width}x{height})")
+    if width<int(os.getenv("SHORTS_MIN_WIDTH","1080")) or height<int(os.getenv("SHORTS_MIN_HEIGHT","1920")): raise ValueError(f"Quality gate: resolution too low ({width}x{height})")
     if height<=width: raise ValueError(f"Quality gate: video is not vertical ({width}x{height})")
     if path.stat().st_size<100_000: raise ValueError(f"Quality gate: file too small ({path.stat().st_size} bytes)")
     return {"duration":round(duration,2),"width":width,"height":height,"video_codec":video.get("codec_name"),"audio_codec":audios[0].get("codec_name"),"bytes":path.stat().st_size}
