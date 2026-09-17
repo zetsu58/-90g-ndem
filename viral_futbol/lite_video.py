@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 from .pexels_media import download_pexels_frames
 from .creative_learning import recommended_hook
 from .video_timeline import timeline_plan
+from .shot_renderer import render_shot, stitch_shots
 
 
 def _edge_voice(configured: str, language: str) -> str:
@@ -100,11 +101,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], language
     try: asyncio.run(_save_speech(narration, _edge_voice(voice_name, language), audio_path))
     except Exception as exc:
         offline_voice = "tr" if language == "tr" else "en-us"; print(f"ViralFutbol Edge TTS unavailable, using offline voice: {exc}", flush=True); subprocess.run(["espeak-ng", "-v", offline_voice, "-s", "175", "-w", str(audio_path), narration], check=True, timeout=60)
-    if frames:
-        concat_path = directory / f"{story_id}-frames.txt"; sequence = [frames[index % len(frames)] for index in range(10)]; rows = []
-        for frame in sequence: rows.extend((f"file '{frame.resolve()}'", "duration 1.65"))
-        rows.append(f"file '{sequence[-1].resolve()}'"); concat_path.write_text("\n".join(rows) + "\n", encoding="utf-8"); video_input = ["-f", "concat", "-safe", "0", "-i", str(concat_path)]
-    else: concat_path = None; video_input = ["-loop", "1", "-framerate", "24", "-i", str(card_path)]
+    shot_paths = []\n    motion_video = None\n    if frames:\n        for index, shot in enumerate(timeline[\"shots\"]):\n            shot_path = directory / f\"{story_id}-shot-{index}.mp4\"\n            render_shot(frames[index % len(frames)], shot_path, float(shot[\"duration\"]), str(shot[\"motion\"]))\n            shot_paths.append(shot_path)\n        motion_video = directory / f\"{story_id}-motion.mp4\"\n        stitch_shots(shot_paths, motion_video)\n        concat_path = None\n        video_input = [\"-i\", str(motion_video)]\n    else:\n        concat_path = None\n        video_input = [\"-loop\", \"1\", \"-framerate\", \"24\", \"-i\", str(card_path)]
     video_filter = "scale=900:1600:flags=lanczos,crop=720:1280:x='90+55*sin(t*0.82)+18*sin(t*2.1)':y='160+70*cos(t*0.61)+16*sin(t*1.7)',eq=contrast=1.06:saturation=1.08,fade=t=in:st=0:d=0.10,fps=30,format=yuv420p"
     music_volume = max(0.05, min(0.35, float(os.getenv("SHORTS_MUSIC_VOLUME", "0.20"))))
     mix = f"[1:a]volume=1.24,acompressor=threshold=0.15:ratio=2.5:attack=5:release=80[voice];[2:a]highpass=f=45,lowpass=f=1600,tremolo=f=4.5:d=0.75,acompressor=threshold=0.2:ratio=3:attack=5:release=80,volume={music_volume}[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=1:normalize=0,alimiter=limit=0.95[a]"
@@ -113,5 +110,4 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], language
     if final_path.stat().st_size < 1024 or b"ftyp" not in final_path.read_bytes()[:64]: raise RuntimeError("Lite video engine did not create a valid MP4")
     card_path.unlink(missing_ok=True); audio_path.unlink(missing_ok=True)
     if concat_path: concat_path.unlink(missing_ok=True)
-    for frame in frames: frame.unlink(missing_ok=True)
-    return final_path
+    for frame in frames: frame.unlink(missing_ok=True)\n    for shot_path in shot_paths: shot_path.unlink(missing_ok=True)\n    if motion_video: motion_video.unlink(missing_ok=True)\n    return final_path
