@@ -65,7 +65,9 @@ def public_status() -> dict:
             "youtube_enabled": youtube.enabled,
             "youtube_credentials_ready": youtube.ready,
             "youtube_privacy_status": youtube.privacy_status,
-            "autostart_worker": os.getenv("NEWS_AUTOSTART_WORKER", "true").casefold() in {"1", "true", "yes", "on"},\n            "release_ready": (not settings.dry_run) and youtube.ready and youtube.privacy_status in {"private", "unlisted", "public"},\n            "db_persistent_path": settings.db_path.startswith("/data/"),
+            "autostart_worker": os.getenv("NEWS_AUTOSTART_WORKER", "true").casefold() in {"1", "true", "yes", "on"},
+            "release_ready": (not settings.dry_run) and youtube.ready and youtube.privacy_status in {"private", "unlisted", "public"},
+            "db_persistent_path": settings.db_path.startswith("/data/"),
         },
     }
 
