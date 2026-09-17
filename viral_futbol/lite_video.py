@@ -29,7 +29,7 @@ def build_lite_narration(title: str, sources: list[str], language: str = "tr", h
     del sources
     clean = re.sub(r"\s+", " ", title).strip().rstrip(".")
     if language == "en":
-        return f"Football update: {clean}. Here is the key point in seconds. Follow 90 Plus Gundem for the next verified update."
+        verified = f" {detail}." if detail else ""\n        return f"Football update: {clean}.{verified} Follow 90 Plus Gundem for the next verified update."
     openings = {
         "breaking": "Bir saniye—gündemde yeni bir gelişme var:",
         "question": "Bu gelişme neden önemli?",
@@ -38,7 +38,7 @@ def build_lite_narration(title: str, sources: list[str], language: str = "tr", h
         "direct": "Futbol gündeminden kısa ve net:",
     }
     opening = openings.get(hook or "direct", openings["direct"])
-    return f"{opening} {clean}. Şu an doğrulanan bilgi bu kadar. Yeni gelişme geldikçe 90+ Gündem aktaracak."
+    verified = f" Doğrulanan diğer başlıklar: {detail}." if detail else ""\n    return f"{opening} {clean}.{verified} Yeni gelişme geldikçe 90+ Gündem aktaracak."
 
 
 def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -97,7 +97,7 @@ def _media_duration(path: Path, fallback: float = 24.0) -> float:
         return fallback
 
 
-def render_lite_video(*, story_id: str, title: str, sources: list[str], language: str, voice_name: str, output_dir: str) -> Path:
+def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: list[str] | None = None, language: str, voice_name: str, output_dir: str) -> Path:
     directory = Path(output_dir); directory.mkdir(parents=True, exist_ok=True); final_path = directory / f"{story_id}.mp4"
     if final_path.exists() and final_path.stat().st_size > 1024: return final_path
     hook = None
@@ -107,7 +107,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], language
             hook = recommended_hook(db_path)
     except Exception as exc:
         print(f"ViralFutbol hook learning deferred: {exc}", flush=True)
-    narration = build_lite_narration(title, sources, language, hook)\n    if db_path:\n        remember_creative(db_path, story_id, hook)\n    card_path = directory / f"{story_id}.png"; audio_path = directory / f"{story_id}.mp3"
+    narration = build_lite_narration(title, sources, language, hook, facts)\n    if db_path:\n        remember_creative(db_path, story_id, hook)\n    card_path = directory / f"{story_id}.png"; audio_path = directory / f"{story_id}.mp3"
     frames = download_pexels_frames(title=title, narration=narration, sources=sources, output_dir=directory, story_id=story_id)
     if not frames: _card(card_path, title, narration, sources)
     try: asyncio.run(_save_speech(narration, _edge_voice(voice_name, language), audio_path))
