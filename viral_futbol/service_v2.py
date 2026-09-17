@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from .lite_video import render_lite_video
 from .media_engine import build_media_plan, material_terms
 from .retention_engine import build_retention_plan, retention_instruction
-from .service import Store, _fetch_queries, build_payload, news_editions, reconcile_jobs, submit
+from .service import Store, _fetch_queries, build_payload, news_editions, reconcile_jobs, submit, verified_clusters
 from .shorts_script import build_script_prompt
 from .viral_engine import evaluate_cluster
 from .visual_quality import build_visual_quality_plan, prioritized_terms
@@ -85,7 +85,7 @@ def run_once_v2(settings) -> dict:
                     diagnostics["deferred_retry"] += 1; ld["deferred_retry"] += 1; continue
                 try:
                     if settings.video_engine == "lite":
-                        video_path = render_lite_video(story_id=story_id, title=cluster[0].title, sources=sorted({s.publisher for s in cluster}), language=language, voice_name=settings.voice_name if language == "tr" else settings.english_voice_name, output_dir=settings.lite_video_dir)
+                        video_path = render_lite_video(story_id=story_id, title=cluster[0].title, sources=sorted({s.publisher for s in cluster}), facts=[s.title for s in cluster[:5]], language=language, voice_name=settings.voice_name if language == "tr" else settings.english_voice_name, output_dir=settings.lite_video_dir)
                         store.mark_complete(story_id, video_path.resolve().as_uri()); diagnostics["generated_lite"] += 1; ld["generated_lite"] += 1; available_slots -= 1; selected["task_id"] = f"lite:{story_id}"
                     else:
                         task_id = submit(payload, settings, idempotency_key=f"viral-futbol:{story_id}")
