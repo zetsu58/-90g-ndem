@@ -29,10 +29,10 @@ def render_shot(image: Path, output: Path, duration: float, motion: str) -> None
     subprocess.run(command, check=True, timeout=90)
 
 
-def stitch_shots(shots: list[Path], output: Path) -> None:
+def stitch_shots(shots: list[Path], output: Path, transitions: list[str] | None = None) -> None:
     if not shots:
         raise ValueError("No rendered shots")
-    concat = output.with_suffix(".shots.txt")
+    # Keep cuts short and energetic. Transition metadata is accepted now so the\n    # compositor can evolve without changing the render call contract.\n    transitions = transitions or [\"hard-cut\"] * len(shots)\n    concat = output.with_suffix(\".shots.txt\")
     concat.write_text("\n".join(f"file '{shot.resolve()}'" for shot in shots) + "\n", encoding="utf-8")
     try:
         subprocess.run([
