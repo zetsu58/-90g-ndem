@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
-VERSION = "viral-futbol-energetic-female-sports-bed-motion-2026-09-16-v16"
+VERSION = os.getenv("RELEASE_VERSION", "90gundem-2026.09-release")
 _lock = threading.Lock()
 _state = {"running": False, "last_result": None, "last_error": None, "last_started_at": None, "last_finished_at": None}
 
@@ -65,7 +65,7 @@ def public_status() -> dict:
             "youtube_enabled": youtube.enabled,
             "youtube_credentials_ready": youtube.ready,
             "youtube_privacy_status": youtube.privacy_status,
-            "autostart_worker": os.getenv("NEWS_AUTOSTART_WORKER", "true").casefold() in {"1", "true", "yes", "on"},
+            "autostart_worker": os.getenv("NEWS_AUTOSTART_WORKER", "true").casefold() in {"1", "true", "yes", "on"},\n            "release_ready": (not settings.dry_run) and youtube.ready and youtube.privacy_status in {"private", "unlisted", "public"},
         },
     }
 
