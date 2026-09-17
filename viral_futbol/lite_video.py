@@ -13,6 +13,7 @@ from .pexels_media import download_pexels_frames
 from .creative_learning import recommended_hook
 from .video_timeline import timeline_plan
 from .shot_renderer import render_shot, stitch_shots
+from .creative_store import remember_creative
 
 
 def _edge_voice(configured: str, language: str) -> str:
@@ -95,7 +96,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], language
             hook = recommended_hook(db_path)
     except Exception as exc:
         print(f"ViralFutbol hook learning deferred: {exc}", flush=True)
-    narration = build_lite_narration(title, sources, language, hook); timeline = timeline_plan(title, 24.0); card_path = directory / f"{story_id}.png"; audio_path = directory / f"{story_id}.mp3"
+    narration = build_lite_narration(title, sources, language, hook); timeline = timeline_plan(title, 24.0)\n    if db_path:\n        remember_creative(db_path, story_id, hook)\n    card_path = directory / f"{story_id}.png"; audio_path = directory / f"{story_id}.mp3"
     frames = download_pexels_frames(title=title, narration=narration, sources=sources, output_dir=directory, story_id=story_id)
     if not frames: _card(card_path, title, narration, sources)
     try: asyncio.run(_save_speech(narration, _edge_voice(voice_name, language), audio_path))
