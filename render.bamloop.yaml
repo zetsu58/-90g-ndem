@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: bamloop
+    runtime: docker
+    dockerfilePath: ./Dockerfile.bamloop
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: MEME_OUTPUT_DIR
+        value: /data/bamloop
+      - key: MEME_INTERVAL_SECONDS
+        value: "14400"
+      - key: MEME_STARTUP_DELAY_SECONDS
+        value: "20"
+      - key: MEME_YOUTUBE_ENABLED
+        value: "false"
+      - key: MEME_YOUTUBE_PRIVACY_STATUS
+        value: private
+      - key: PEXELS_API_KEY
+        sync: false
+      - key: MEME_YOUTUBE_CLIENT_ID
+        sync: false
+      - key: MEME_YOUTUBE_CLIENT_SECRET
+        sync: false
+      - key: MEME_YOUTUBE_REFRESH_TOKEN
+        sync: false
