@@ -12,6 +12,8 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from .discovery_metadata import discovery_metadata
+
 
 @dataclass(frozen=True)
 class YouTubeConfig:
@@ -89,9 +91,10 @@ def _validate_short(path:Path)->dict:
 
 
 def _metadata(job:dict)->tuple[str,str,list[str]]:
-    language=str(job.get("language") or "tr"); raw_title=str(job.get("title") or "Futbol gündeminde son dakika").strip(); title=raw_title[:92].rstrip(" #")+" #Shorts"
-    if language=="en": return title[:100],"Verified football update with original narration and editing.\n\n#Football #Shorts",["football","football news","shorts"]
-    return title[:100],"Doğrulanmış futbol gündemi; özgün anlatım ve kurgu.\n\n#Futbol #SonDakika #Shorts",["futbol","son dakika","futbol haberleri","shorts"]
+    language=str(job.get("language") or "tr")
+    raw_title=str(job.get("title") or "Futbol gündeminde son dakika").strip()
+    metadata=discovery_metadata(raw_title, language)
+    return str(metadata["title"]), str(metadata["description"]), list(metadata["tags"])
 
 
 def _upload(path:Path,job:dict,config:YouTubeConfig)->str:
