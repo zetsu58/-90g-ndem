@@ -46,9 +46,7 @@ class PublicationStore:
             self.db.execute("INSERT INTO youtube_publications(story_id,status,attempts,updated_at) VALUES (?,'uploading',1,?) ON CONFLICT(story_id) DO UPDATE SET status='uploading',attempts=attempts+1,last_error=NULL,updated_at=?,next_retry_at=0",(story_id,now,now)); return True
     def published(self,story_id:str,video_id:str)->None:
         with self.db: self.db.execute("UPDATE youtube_publications SET status='published',video_id=?,last_error=NULL,updated_at=?,next_retry_at=0 WHERE story_id=?",(video_id,time.time(),story_id))
-    def failed(self,story_id:str,error:str,retry_seconds:int)->None:
-        now=time.time()
-        with self.db: self.db.execute("UPDATE youtube_publications SET status='failed',last_error=?,updated_at=?,next_retry_at=? WHERE story_id=?",(error[:2000],now,now+retry_seconds,story_id))
+    def failed(self,story_id:str,error:str,retry_seconds:int)->None:\n        now=time.time()\n        with self.db: self.db.execute(\"UPDATE youtube_publications SET status='failed',last_error=?,updated_at=?,next_retry_at=? WHERE story_id=?\",(error[:2000],now,now+retry_seconds,story_id))\n    def rejected(self,story_id:str,error:str)->None:\n        now=time.time()\n        with self.db: self.db.execute(\"UPDATE youtube_publications SET status='rejected',last_error=?,updated_at=?,next_retry_at=0 WHERE story_id=?\",(error[:2000],now,story_id))
     def counts(self)->dict[str,int]: return {str(row["status"]):int(row["count"]) for row in self.db.execute("SELECT status,COUNT(*) AS count FROM youtube_publications GROUP BY status").fetchall()}
 
 
@@ -119,9 +117,7 @@ def publish_ready(settings,limit:int=2)->dict:
             try:
                 with tempfile.TemporaryDirectory(prefix="viral-futbol-") as directory:
                     video_path=Path(directory)/f"{story_id}.mp4"; _download(str(job["output_url"]),video_path,settings.mpt_api_key,settings.mpt_request_timeout)
-                    try: quality=_validate_short(video_path)
-                    except ValueError:
-                        result["quality_blocked"]+=1; raise
+                    try: quality=_validate_short(video_path)\n                    except ValueError as exc:\n                        result[\"quality_blocked\"]+=1; store.rejected(story_id,f\"{type(exc).__name__}: {exc}\"); continue
                     result["validated"].append({"story_id":story_id,**quality}); video_id=_upload(video_path,job,config)
                 store.published(story_id,video_id); result["published"]+=1
             except Exception as exc:
