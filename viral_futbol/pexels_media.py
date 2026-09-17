@@ -92,23 +92,23 @@ def _search_relevant(title: str, limit: int) -> list[tuple[str,str]]:
 
 
 def _render_frame(photo_path: Path, output_path: Path, title: str, phrase: str, credit: str, index: int, total: int) -> None:
-    with Image.open(photo_path) as opened: image=ImageOps.fit(opened.convert("RGB"),(540,960),method=Image.Resampling.LANCZOS)
+    with Image.open(photo_path) as opened: image=ImageOps.fit(opened.convert("RGB"),(1080,1920),method=Image.Resampling.LANCZOS)
     image=image.convert("RGBA"); shade=Image.new("RGBA",image.size,(0,0,0,0)); draw_shade=ImageDraw.Draw(shade)
-    for y in range(960):
-        alpha=150-int(y*.35) if y<130 else (min(225,45+int((y-545)*.48)) if y>545 else 35); draw_shade.line((0,y,540,y),fill=(2,8,18,alpha))
-    image=Image.alpha_composite(image,shade).convert("RGB"); draw=ImageDraw.Draw(image); accent="#ff2438"; draw.rounded_rectangle((22,18,518,86),radius=16,fill="#050505",outline=accent,width=2)
+    for y in range(1920):
+        alpha=150-int(y*.35) if y<260 else (min(225,45+int((y-1090)*.48)) if y>545 else 35); draw_shade.line((0,y,1080,y),fill=(2,8,18,alpha))
+    image=Image.alpha_composite(image,shade).convert("RGB"); draw=ImageDraw.Draw(image); accent="#ff2438"; draw.rounded_rectangle((44,36,1036,172),radius=16,fill="#050505",outline=accent,width=2)
     logo_path=Path(__file__).resolve().parents[1]/"assets"/"90gundem-logo-v2.png"
     if logo_path.exists():
-        with Image.open(logo_path) as logo_opened: logo=ImageOps.contain(logo_opened.convert("RGBA"),(58,58),method=Image.Resampling.LANCZOS)
-        image.paste(logo,(31,23),logo); draw=ImageDraw.Draw(image)
-    draw.text((102,40),"SON DAKİKA  •  90+ GÜNDEM",font=_font(18,True),fill="white"); draw.rounded_rectangle((28,630,340,680),radius=15,fill=accent); draw.text((48,644),_story_label(title),font=_font(18,True),fill="#06101c")
-    display_text=title if index==0 else phrase; y=710
-    for line in _lines(display_text,29,4): draw.text((29,y),line,font=_font(30,True),fill="white",stroke_width=2,stroke_fill="#07111f"); y+=40
-    draw.text((30,900),"90+ Gündem  •  #Futbol #Shorts",font=_font(17,True),fill="#e7edf4")
-    if credit and credit!="Pexels": draw.text((420,908),"CC/Wikimedia",font=_font(11),fill="#c5d1df")
-    bar_width=480//max(1,total)
-    for slot in range(total): draw.rounded_rectangle((30+slot*bar_width,930,30+slot*bar_width+bar_width-8,940),radius=5,fill=accent if slot<=index else "#607086")
-    image.save(output_path,"JPEG",quality=88,optimize=True)
+        with Image.open(logo_path) as logo_opened: logo=ImageOps.contain(logo_opened.convert("RGBA"),(116,116),method=Image.Resampling.LANCZOS)
+        image.paste(logo,(62,46),logo); draw=ImageDraw.Draw(image)
+    draw.text((204,80),"SON DAKİKA  •  90+ GÜNDEM",font=_font(36,True),fill="white"); draw.rounded_rectangle((56,1260,680,1360),radius=15,fill=accent); draw.text((96,1288),_story_label(title),font=_font(18,True),fill="#06101c")
+    display_text=title if index==0 else phrase; y=1420
+    for line in _lines(display_text,29,4): draw.text((58,y),line,font=_font(60,True),fill="white",stroke_width=2,stroke_fill="#07111f"); y+=80
+    draw.text((60,1800),"90+ Gündem  •  #Futbol #Shorts",font=_font(34,True),fill="#e7edf4")
+    if credit and credit!="Pexels": draw.text((840,1816),"CC/Wikimedia",font=_font(22),fill="#c5d1df")
+    bar_width=960//max(1,total)
+    for slot in range(total): draw.rounded_rectangle((60+slot*bar_width,1860,60+slot*bar_width+bar_width-16,1880),radius=5,fill=accent if slot<=index else "#607086")
+    image.save(output_path,"JPEG",quality=92,optimize=True)
 
 
 def download_pexels_frames(*, title: str, narration: str, sources: list[str], output_dir: Path, story_id: str, limit: int = 8) -> list[Path]:

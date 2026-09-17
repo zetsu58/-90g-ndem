@@ -6,13 +6,13 @@ from pathlib import Path
 
 def _motion_filter(motion: str) -> str:
     motions = {
-        "slow-push": "scale=900:1600,crop=720:1280:x='90+25*t':y='160+12*t'",
-        "parallax": "scale=920:1640,crop=720:1280:x='100+45*sin(t*0.9)':y='180+28*cos(t*0.7)'",
-        "whip-pan": "scale=940:1670,crop=720:1280:x='110+85*sin(t*1.8)':y='195+18*cos(t)'",
-        "micro-zoom": "scale=880:1565,crop=720:1280:x='80+18*sin(t)':y='142+18*cos(t)'",
-        "punch-in": "scale=960:1707,crop=720:1280:x='120+35*sin(t*1.4)':y='210+30*cos(t)'",
-        "slide": "scale=900:1600,crop=720:1280:x='90+55*sin(t*0.65)':y=160",
-        "crop-pan": "scale=920:1640,crop=720:1280:x='100+52*sin(t*0.72)':y='180+20*cos(t)'",
+        "slow-push": "scale=1350:2400,crop=1080:1920:x='135+38*t':y='240+18*t'",
+        "parallax": "scale=1380:2453,crop=1080:1920:x='150+68*sin(t*0.9)':y='270+42*cos(t*0.7)'",
+        "whip-pan": "scale=1410:2507,crop=1080:1920:x='165+128*sin(t*1.8)':y='293+27*cos(t)'",
+        "micro-zoom": "scale=1320:2347,crop=1080:1920:x='120+27*sin(t)':y='213+27*cos(t)'",
+        "punch-in": "scale=1440:2560,crop=1080:1920:x='180+53*sin(t*1.4)':y='315+45*cos(t)'",
+        "slide": "scale=1350:2400,crop=1080:1920:x='135+83*sin(t*0.65)':y=240",
+        "crop-pan": "scale=1380:2453,crop=1080:1920:x='150+78*sin(t*0.72)':y='270+30*cos(t)'",
     }
     return motions.get(motion, motions["slow-push"]) + ",fps=30,format=yuv420p"
 
