@@ -29,7 +29,7 @@ def render_shot(image: Path, output: Path, duration: float, motion: str) -> None
     subprocess.run(command, check=True, timeout=90)
 
 
-def stitch_shots(shots: list[Path], output: Path, transitions: list[str] | None = None) -> None:
+def stitch_shots(shots: list[Path], output: Path, transitions: list[str] | None = None, durations: list[float] | None = None) -> None:
     if not shots:
         raise ValueError("No rendered shots")
     if len(shots) == 1:
@@ -54,7 +54,7 @@ def stitch_shots(shots: list[Path], output: Path, transitions: list[str] | None 
             f"{previous}[{index}:v]xfade=transition={effect}:duration={duration:.2f}:offset={offset:.2f}{out}"
         )
         previous = out
-        offset += max(0.8, 2.6 - duration)
+        if index < len(shots) - 1:\n            offset += max(0.8, float(shot_durations[index]) - duration)
 
     command = [
         "ffmpeg", "-y", "-loglevel", "error", *inputs,
