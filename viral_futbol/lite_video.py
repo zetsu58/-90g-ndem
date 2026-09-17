@@ -11,6 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from .pexels_media import download_pexels_frames
 from .creative_learning import recommended_hook
+from .video_timeline import timeline_plan
 
 
 def _edge_voice(configured: str, language: str) -> str:
@@ -93,7 +94,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], language
             hook = recommended_hook(db_path)
     except Exception as exc:
         print(f"ViralFutbol hook learning deferred: {exc}", flush=True)
-    narration = build_lite_narration(title, sources, language, hook); card_path = directory / f"{story_id}.png"; audio_path = directory / f"{story_id}.mp3"
+    narration = build_lite_narration(title, sources, language, hook); timeline = timeline_plan(title, 24.0); card_path = directory / f"{story_id}.png"; audio_path = directory / f"{story_id}.mp3"
     frames = download_pexels_frames(title=title, narration=narration, sources=sources, output_dir=directory, story_id=story_id)
     if not frames: _card(card_path, title, narration, sources)
     try: asyncio.run(_save_speech(narration, _edge_voice(voice_name, language), audio_path))
@@ -104,7 +105,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], language
         for frame in sequence: rows.extend((f"file '{frame.resolve()}'", "duration 1.65"))
         rows.append(f"file '{sequence[-1].resolve()}'"); concat_path.write_text("\n".join(rows) + "\n", encoding="utf-8"); video_input = ["-f", "concat", "-safe", "0", "-i", str(concat_path)]
     else: concat_path = None; video_input = ["-loop", "1", "-framerate", "24", "-i", str(card_path)]
-    video_filter = "scale=820:1458:flags=lanczos,crop=720:1280:x='50+28*sin(t*1.05)':y='89+34*cos(t*0.8)',fade=t=in:st=0:d=0.12,fps=30,format=yuv420p"
+    video_filter = "scale=900:1600:flags=lanczos,crop=720:1280:x='90+55*sin(t*0.82)+18*sin(t*2.1)':y='160+70*cos(t*0.61)+16*sin(t*1.7)',eq=contrast=1.06:saturation=1.08,fade=t=in:st=0:d=0.10,fps=30,format=yuv420p"
     music_volume = max(0.05, min(0.35, float(os.getenv("SHORTS_MUSIC_VOLUME", "0.20"))))
     mix = f"[1:a]volume=1.24,acompressor=threshold=0.15:ratio=2.5:attack=5:release=80[voice];[2:a]highpass=f=45,lowpass=f=1600,tremolo=f=4.5:d=0.75,acompressor=threshold=0.2:ratio=3:attack=5:release=80,volume={music_volume}[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=1:normalize=0,alimiter=limit=0.95[a]"
     command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), "-f", "lavfi", "-i", "aevalsrc=0.30*sin(2*PI*55*t)+0.12*sin(2*PI*110*t)+0.08*sin(2*PI*165*t):s=44100", "-vf", video_filter, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", str(final_path)]
