@@ -1,0 +1,16 @@
+FROM python:3.12-slim
+WORKDIR /app
+COPY pyproject.toml README.md BAMLOOP.md /app/
+COPY bamloop /app/bamloop
+COPY scripts /app/scripts
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir . \
+    && useradd --create-home --uid 10001 app \
+    && mkdir -p /data/bamloop \
+    && chown -R app:app /app /data
+USER app
+ENV PORT=8080 MEME_OUTPUT_DIR=/data/bamloop MEME_INTERVAL_SECONDS=14400
+EXPOSE 8080
+CMD ["python", "-m", "bamloop.service"]
