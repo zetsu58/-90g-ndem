@@ -48,10 +48,7 @@ def creative_report(db_path: str, limit: int = 200) -> dict:
     try:
         rows = db.execute(
             """
-            SELECT m.title, p.score, y.updated_at
-            FROM shorts_performance p
-            JOIN youtube_manifests m ON m.story_id=p.story_id
-            JOIN youtube_publications y ON y.story_id=p.story_id
+            SELECT m.title, p.score, y.updated_at, c.hook_variant\n            FROM shorts_performance p\n            JOIN youtube_manifests m ON m.story_id=p.story_id\n            JOIN youtube_publications y ON y.story_id=p.story_id\n            LEFT JOIN shorts_creatives c ON c.story_id=p.story_id
             WHERE y.status='published'
             ORDER BY p.updated_at DESC LIMIT ?
             """,
@@ -66,7 +63,7 @@ def creative_report(db_path: str, limit: int = 200) -> dict:
     hours = defaultdict(list)
     for row in rows:
         score = float(row["score"])
-        hooks[hook_type(str(row["title"]))].append(score)
+        actual_hook = str(row["hook_variant"] or "").strip()\n        hooks[actual_hook or hook_type(str(row["title"]))].append(score)
         hours[hour_bucket(float(row["updated_at"]))].append(score)
 
     hook_report = {}
