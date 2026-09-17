@@ -4,6 +4,7 @@ import os
 from dataclasses import asdict, dataclass
 
 from viral_futbol.x_newsroom import fetch_x_newsroom
+from viral_futbol.topic_learning import topic_boost
 
 
 @dataclass(frozen=True)
@@ -12,6 +13,8 @@ class TrendPick:
     score: int
     sources: int
     reason: str
+    learning_boost: float = 0.0
+    learning_evidence: tuple[str, ...] = ()
 
 
 def _score(title: str, sources: int) -> int:
@@ -40,9 +43,11 @@ def select_trends(settings) -> list[TrendPick]:
         if not title or key in seen:
             continue
         seen.add(key)
-        score = _score(title, len(cluster))
+        base_score = _score(title, len(cluster))
+        boost, evidence = topic_boost(settings.db_path, title)
+        score = max(0, min(100, round(base_score + boost)))
         if score >= minimum:
-            picks.append(TrendPick(title, score, len(cluster), "verified-cluster"))
+            picks.append(TrendPick(title, score, len(cluster), "verified-cluster", boost, tuple(evidence)))
     return sorted(picks, key=lambda item: item.score, reverse=True)
 
 
