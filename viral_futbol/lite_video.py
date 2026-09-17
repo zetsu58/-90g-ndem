@@ -89,7 +89,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], language
     if final_path.exists() and final_path.stat().st_size > 1024: return final_path
     hook = None
     try:
-        db_path = os.getenv("DB_PATH", "").strip()
+        db_path = (os.getenv("NEWS_DB_PATH", "") or os.getenv("DB_PATH", "")).strip()
         if db_path:
             hook = recommended_hook(db_path)
     except Exception as exc:

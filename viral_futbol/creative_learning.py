@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from collections import defaultdict
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 HOOKS = {
@@ -22,7 +24,7 @@ def hook_type(title: str) -> str:
 
 
 def hour_bucket(timestamp: float) -> str:
-    hour = datetime.fromtimestamp(timestamp).hour
+    timezone_name = os.getenv("CHANNEL_TIMEZONE", "Europe/Istanbul").strip() or "Europe/Istanbul"\n    try:\n        zone = ZoneInfo(timezone_name)\n    except Exception:\n        zone = ZoneInfo("Europe/Istanbul")\n    hour = datetime.fromtimestamp(timestamp, tz=zone).hour
     if 5 <= hour < 11:
         return "morning"
     if 11 <= hour < 17:

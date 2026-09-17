@@ -10,9 +10,13 @@ from .youtube_publisher import YouTubeConfig
 
 
 def _youtube(config: YouTubeConfig):
-    from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
 
+    api_key = os.getenv("YOUTUBE_API_KEY", "").strip()
+    if api_key:
+        return build("youtube", "v3", developerKey=api_key, cache_discovery=False)
+
+    from google.oauth2.credentials import Credentials
     credentials = Credentials(
         token=None,
         refresh_token=config.refresh_token,
