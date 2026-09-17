@@ -86,6 +86,17 @@ async def _save_speech(text: str, voice: str, path: Path) -> None:
     await communicate.save(str(path))
 
 
+def _media_duration(path: Path, fallback: float = 24.0) -> float:
+    try:
+        probe = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(path)],
+            check=True, capture_output=True, text=True, timeout=20,
+        )
+        return max(8.0, min(70.0, float(probe.stdout.strip())))
+    except Exception:
+        return fallback
+
+
 def render_lite_video(*, story_id: str, title: str, sources: list[str], language: str, voice_name: str, output_dir: str) -> Path:
     directory = Path(output_dir); directory.mkdir(parents=True, exist_ok=True); final_path = directory / f"{story_id}.mp4"
     if final_path.exists() and final_path.stat().st_size > 1024: return final_path
@@ -96,16 +107,16 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], language
             hook = recommended_hook(db_path)
     except Exception as exc:
         print(f"ViralFutbol hook learning deferred: {exc}", flush=True)
-    narration = build_lite_narration(title, sources, language, hook); timeline = timeline_plan(title, 24.0)\n    if db_path:\n        remember_creative(db_path, story_id, hook)\n    card_path = directory / f"{story_id}.png"; audio_path = directory / f"{story_id}.mp3"
+    narration = build_lite_narration(title, sources, language, hook)\n    if db_path:\n        remember_creative(db_path, story_id, hook)\n    card_path = directory / f"{story_id}.png"; audio_path = directory / f"{story_id}.mp3"
     frames = download_pexels_frames(title=title, narration=narration, sources=sources, output_dir=directory, story_id=story_id)
     if not frames: _card(card_path, title, narration, sources)
     try: asyncio.run(_save_speech(narration, _edge_voice(voice_name, language), audio_path))
     except Exception as exc:
         offline_voice = "tr" if language == "tr" else "en-us"; print(f"ViralFutbol Edge TTS unavailable, using offline voice: {exc}", flush=True); subprocess.run(["espeak-ng", "-v", offline_voice, "-s", "175", "-w", str(audio_path), narration], check=True, timeout=60)
-    shot_paths = []\n    motion_video = None\n    if frames:\n        for index, shot in enumerate(timeline[\"shots\"]):\n            shot_path = directory / f\"{story_id}-shot-{index}.mp4\"\n            render_shot(frames[index % len(frames)], shot_path, float(shot[\"duration\"]), str(shot[\"motion\"]))\n            shot_paths.append(shot_path)\n        motion_video = directory / f\"{story_id}-motion.mp4\"\n        stitch_shots(shot_paths, motion_video, [str(shot[\"transition\"]) for shot in timeline[\"shots\"]])\n        concat_path = None\n        video_input = [\"-i\", str(motion_video)]\n    else:\n        concat_path = None\n        video_input = [\"-loop\", \"1\", \"-framerate\", \"24\", \"-i\", str(card_path)]
+    audio_duration = _media_duration(audio_path)\n    timeline = timeline_plan(title, min(70.0, audio_duration + 0.35))\n    shot_paths = []\n    motion_video = None\n    if frames:\n        for index, shot in enumerate(timeline[\"shots\"]):\n            shot_path = directory / f\"{story_id}-shot-{index}.mp4\"\n            render_shot(frames[index % len(frames)], shot_path, float(shot[\"duration\"]), str(shot[\"motion\"]))\n            shot_paths.append(shot_path)\n        motion_video = directory / f\"{story_id}-motion.mp4\"\n        stitch_shots(shot_paths, motion_video, [str(shot[\"transition\"]) for shot in timeline[\"shots\"]])\n        concat_path = None\n        video_input = [\"-i\", str(motion_video)]\n    else:\n        concat_path = None\n        video_input = [\"-loop\", \"1\", \"-framerate\", \"24\", \"-i\", str(card_path)]
     video_filter = "scale=900:1600:flags=lanczos,crop=720:1280:x='90+55*sin(t*0.82)+18*sin(t*2.1)':y='160+70*cos(t*0.61)+16*sin(t*1.7)',eq=contrast=1.06:saturation=1.08,fade=t=in:st=0:d=0.10,fps=30,format=yuv420p"
     try:\n        music_volume = float(os.getenv("SHORTS_MUSIC_VOLUME", "0.20"))\n    except ValueError:\n        music_volume = 0.20\n    music_volume = max(0.05, min(0.35, music_volume))
-    mix = f"[1:a]volume=1.24,acompressor=threshold=0.15:ratio=2.5:attack=5:release=80[voice];[2:a]highpass=f=45,lowpass=f=1600,tremolo=f=4.5:d=0.75,acompressor=threshold=0.2:ratio=3:attack=5:release=80,volume={music_volume}[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=1:normalize=0,alimiter=limit=0.95[a]"
+    mix = f"[1:a]volume=1.20,acompressor=threshold=0.14:ratio=2.7:attack=4:release=90[voice];[2:a]highpass=f=55,lowpass=f=9000,volume={music_volume}[bed];[bed][voice]sidechaincompress=threshold=0.035:ratio=8:attack=12:release=280[ducked];[voice][ducked]amix=inputs=2:duration=first:dropout_transition=1:normalize=0,alimiter=limit=0.94[a]"
     command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), "-f", "lavfi", "-i", "aevalsrc=0.30*sin(2*PI*55*t)+0.12*sin(2*PI*110*t)+0.08*sin(2*PI*165*t):s=44100", "-vf", video_filter, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", str(final_path)]
     try:\n        timeout = max(60, int(os.getenv("LITE_VIDEO_TIMEOUT_SECONDS", "180")))\n    except ValueError:\n        timeout = 180\n    subprocess.run(command, check=True, timeout=timeout)
     if final_path.stat().st_size < 1024 or b"ftyp" not in final_path.read_bytes()[:64]: raise RuntimeError("Lite video engine did not create a valid MP4")
