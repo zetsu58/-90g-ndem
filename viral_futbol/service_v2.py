@@ -56,7 +56,7 @@ def run_once_v2(settings) -> dict:
             stories = _fetch_queries(queries, language=language, country=country, workers=settings.fetch_workers)
             recent = [s for s in stories if s.published >= cutoff]
             unique_recent = {s.url or s.title: s for s in recent}
-            clusters = [[s] for s in sorted(unique_recent.values(), key=lambda item: item.published, reverse=True)]
+            clusters = verified_clusters(list(unique_recent.values()), settings)
             ld = {"fetched": len(stories), "recent": len(recent), "verified": len(clusters), "viral_produce": 0, "viral_hold": 0, "viral_ignore": 0, "below_trend_gate": 0, "duplicates": 0, "previewed": 0, "submitted": 0, "generated_lite": 0, "submission_failed": 0, "deferred_capacity": 0, "deferred_retry": 0}
             diagnostics["fetched"] += len(stories); diagnostics["recent"] += len(recent); diagnostics["verified"] += len(clusters)
             for cluster in clusters:
