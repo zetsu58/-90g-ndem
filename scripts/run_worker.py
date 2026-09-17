@@ -21,23 +21,29 @@ def _x_daily_limit() -> int:
 
 def cycle() -> dict:
     settings = Settings()
-    result = {"trend_gate": None, "x": {"verified": 0, "published": 0, "duplicates": 0, "budget_blocked": 0, "failed": 0}, "shorts": None, "youtube": None}
+    result = {"trend_gate": None, "x": {"verified": 0, "published": 0, "duplicates": 0, "budget_blocked": 0, "gate_blocked": 0, "failed": 0}, "shorts": None, "youtube": None}
 
     try:
         result["trend_gate"] = trend_gate(settings)
     except Exception as exc:
-        result["trend_gate"] = {"error": str(exc), "accepted": 0}
+        result["trend_gate"] = {"error": str(exc), "accepted": 0, "top": []}
         print(f"ViralFutbol trend gate deferred: {exc}", flush=True)
+
+    gate_result = result.get("trend_gate") or {}
+    gate_ok = "error" not in gate_result
+    accepted_titles = {str(item.get("title") or "").strip() for item in gate_result.get("top", []) if str(item.get("title") or "").strip()}
 
     try:
         clusters = fetch_x_newsroom(settings)
         result["x"]["verified"] = len(clusters)
         limit = _x_daily_limit()
-        accepted_titles = {item["title"] for item in (result.get("trend_gate") or {}).get("top", [])}
         with XPublishedStore(settings.db_path) as x_store:
             for cluster in clusters:
                 title = cluster[0].title
-                if accepted_titles and title not in accepted_titles:
+                # Fail closed: an unavailable gate or a successful gate with zero
+                # accepted titles must never turn into "publish everything".
+                if not gate_ok or title not in accepted_titles:
+                    result["x"]["gate_blocked"] += 1
                     continue
                 if x_store.contains(title):
                     result["x"]["duplicates"] += 1
@@ -66,15 +72,21 @@ def cycle() -> dict:
         result["shorts"] = {"error": str(exc)}
         print(f"ViralFutbol Shorts V2 scan deferred: {exc}", flush=True)
 
-    try:
-        result["youtube"] = publish_ready(settings)
-    except Exception as exc:
-        result["youtube"] = {"error": str(exc)}
-        print(f"ViralFutbol YouTube publisher deferred: {exc}", flush=True)
+    # Upload only after this cycle's Shorts scan completed cleanly. Existing
+    # complete jobs remain queued instead of being published during a degraded run.
+    shorts_ok = isinstance(result.get("shorts"), dict) and "error" not in (result.get("shorts") or {})
+    if shorts_ok:
+        try:
+            result["youtube"] = publish_ready(settings)
+        except Exception as exc:
+            result["youtube"] = {"error": str(exc)}
+            print(f"ViralFutbol YouTube publisher deferred: {exc}", flush=True)
+    else:
+        result["youtube"] = {"deferred": True, "reason": "shorts_scan_failed"}
 
     return result
 
 
 if __name__ == "__main__":
-    print("ViralFutbol V2 autonomous worker + trend gate started", flush=True)
+    print("ViralFutbol V2 autonomous worker + fail-closed quality gates started", flush=True)
     AutonomousWorker(cycle).serve_forever()
