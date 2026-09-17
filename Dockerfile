@@ -11,6 +11,6 @@ RUN apt-get update \
     && mkdir -p /data \
     && chown -R app:app /app /data
 USER app
-ENV PORT=8080 NEWS_AUTOSTART_WORKER=true
+ENV PORT=8080 NEWS_AUTOSTART_WORKER=true PYTHONUNBUFFERED=1
 EXPOSE 8080
 CMD ["python", "-m", "viral_futbol.web"]
