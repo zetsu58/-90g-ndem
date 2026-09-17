@@ -52,11 +52,9 @@ def _chunks(items: list[dict], size: int = 50):
 
 def collect_youtube_performance(db_path: str, limit: int | None = None) -> dict:
     config = YouTubeConfig.from_env()
-    result = {"enabled": config.enabled, "ready": config.ready, "checked": 0, "recorded": 0, "missing": 0}
-    if not config.ready:
-        return result
+    api_key = os.getenv("YOUTUBE_API_KEY", "").strip()\n    analytics_ready = bool(api_key) or config.ready\n    result = {"enabled": config.enabled, "ready": analytics_ready, "auth_mode": "api_key" if api_key else "oauth", "checked": 0, "recorded": 0, "missing": 0}\n    if not analytics_ready:\n        return result
 
-    jobs = _published(db_path, limit or int(os.getenv("YOUTUBE_ANALYTICS_LIMIT", "100")))
+    try:\n        analytics_limit = int(os.getenv("YOUTUBE_ANALYTICS_LIMIT", "100"))\n    except ValueError:\n        analytics_limit = 100\n    jobs = _published(db_path, limit or analytics_limit)
     if not jobs:
         return result
 
