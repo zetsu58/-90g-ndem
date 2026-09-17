@@ -12,6 +12,7 @@ from .shorts_script import build_script_prompt
 from .viral_engine import evaluate_cluster
 from .visual_quality import build_visual_quality_plan, prioritized_terms
 from .youtube_publisher import remember_manifest
+from .content_strategy import build_content_strategy
 
 
 def _shorts_min_score() -> int:
@@ -67,8 +68,11 @@ def run_once_v2(settings) -> dict:
                     continue
                 diagnostics["viral_produce"] += 1; ld["viral_produce"] += 1
                 story_id = store.story_id(cluster, language)
+                strategy = build_content_strategy(settings.db_path, cluster[0].title) if language == "tr" else None
                 payload = build_v2_payload(cluster, settings, language, score)
-                selected = {"language": language, "title": cluster[0].title, "sources": sorted({s.publisher for s in cluster}), "viral_score": score, "viral_reasons": list(decision.score.reasons), "trend_gate": "accepted", "script_engine": "shorts-v2" if language == "tr" else "legacy-en", "video_subject": payload.get("video_subject", ""), "clip_duration": payload.get("video_clip_duration"), "subtitle_font_size": payload.get("font_size")}
+                if strategy and strategy.confidence in {"medium", "high"}:
+                    payload["custom_system_prompt"] += f" Öğrenilmiş açılış biçimi: {strategy.hook}. Bunu doğal uygula; doğrulanmış bilgilerin dışına çıkma."
+                selected = {"language": language, "title": cluster[0].title, "sources": sorted({s.publisher for s in cluster}), "viral_score": score, "viral_reasons": list(decision.score.reasons), "trend_gate": "accepted", "script_engine": "shorts-v2" if language == "tr" else "legacy-en", "video_subject": payload.get("video_subject", ""), "clip_duration": payload.get("video_clip_duration"), "subtitle_font_size": payload.get("font_size"), "strategy": strategy.as_dict() if strategy else None}
                 remember_manifest(settings.db_path, story_id, cluster[0].title, language, sorted({s.publisher for s in cluster}))
                 if settings.dry_run:
                     submit(payload, settings, idempotency_key=f"viral-futbol:{story_id}")
