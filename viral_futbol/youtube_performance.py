@@ -30,11 +30,10 @@ def _youtube(config: YouTubeConfig):
 
 def _published(db_path: str, limit: int) -> list[dict]:
     db = sqlite3.connect(db_path, timeout=30)
-    db.row_factory = sqlite3.Row
-    try:
+    db.row_factory = sqlite3.Row\n    try:\n        columns = {row[1] for row in db.execute("PRAGMA table_info(youtube_publications)").fetchall()}\n        if "published_at" not in columns:\n            db.execute("ALTER TABLE youtube_publications ADD COLUMN published_at REAL")\n            db.commit()
         rows = db.execute(
             """
-            SELECT p.story_id, p.video_id, p.updated_at
+            SELECT p.story_id, p.video_id, p.updated_at, p.published_at
             FROM youtube_publications p
             WHERE p.status='published' AND p.video_id IS NOT NULL
             ORDER BY p.updated_at DESC LIMIT ?
@@ -89,8 +88,7 @@ def collect_youtube_performance(db_path: str, limit: int | None = None) -> dict:
                     comments=int(stats.get("commentCount") or 0),
                     age_hours=age_hours,
                 )
-                performance.record(sample)
-                result["recorded"] += 1
+                performance.record(sample)\n                if published_at:\n                    try:\n                        published_epoch = published.timestamp()\n                        db = sqlite3.connect(db_path, timeout=30)\n                        with db:\n                            db.execute("UPDATE youtube_publications SET published_at=? WHERE story_id=?", (published_epoch, str(job["story_id"])))\n                        db.close()\n                    except Exception:\n                        pass\n                result["recorded"] += 1
             result["checked"] += len(batch)
             result["missing"] += len(batch) - len(seen)
         result["leaders"] = performance.leaders(5)
