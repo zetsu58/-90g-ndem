@@ -46,7 +46,16 @@ class PublicationStore:
             self.db.execute("INSERT INTO youtube_publications(story_id,status,attempts,updated_at) VALUES (?,'uploading',1,?) ON CONFLICT(story_id) DO UPDATE SET status='uploading',attempts=attempts+1,last_error=NULL,updated_at=?,next_retry_at=0",(story_id,now,now)); return True
     def published(self,story_id:str,video_id:str)->None:
         with self.db: self.db.execute("UPDATE youtube_publications SET status='published',video_id=?,last_error=NULL,updated_at=?,next_retry_at=0 WHERE story_id=?",(video_id,time.time(),story_id))
-    def failed(self,story_id:str,error:str,retry_seconds:int)->None:\n        now=time.time()\n        with self.db: self.db.execute(\"UPDATE youtube_publications SET status='failed',last_error=?,updated_at=?,next_retry_at=? WHERE story_id=?\",(error[:2000],now,now+retry_seconds,story_id))\n    def rejected(self,story_id:str,error:str)->None:\n        now=time.time()\n        with self.db: self.db.execute(\"UPDATE youtube_publications SET status='rejected',last_error=?,updated_at=?,next_retry_at=0 WHERE story_id=?\",(error[:2000],now,story_id))
+    def failed(self,story_id:str,error:str,retry_seconds:int)->None:
+        now=time.time()
+        with self.db:
+            self.db.execute("UPDATE youtube_publications SET status='failed',last_error=?,updated_at=?,next_retry_at=? WHERE story_id=?",(error[:2000],now,now+retry_seconds,story_id))
+
+    def rejected(self,story_id:str,error:str)->None:
+        now=time.time()
+        with self.db:
+            self.db.execute("UPDATE youtube_publications SET status='rejected',last_error=?,updated_at=?,next_retry_at=0 WHERE story_id=?",(error[:2000],now,story_id))
+
     def counts(self)->dict[str,int]: return {str(row["status"]):int(row["count"]) for row in self.db.execute("SELECT status,COUNT(*) AS count FROM youtube_publications GROUP BY status").fetchall()}
 
 
