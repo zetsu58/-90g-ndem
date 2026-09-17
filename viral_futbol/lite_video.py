@@ -25,11 +25,27 @@ def _edge_voice(configured: str, language: str) -> str:
     return voice
 
 
-def build_lite_narration(title: str, sources: list[str], language: str = "tr", hook: str | None = None) -> str:
+def build_lite_narration(
+    title: str,
+    sources: list[str],
+    language: str = "tr",
+    hook: str | None = None,
+    facts: list[str] | None = None,
+) -> str:
     del sources
     clean = re.sub(r"\s+", " ", title).strip().rstrip(".")
+    clean_facts: list[str] = []
+    seen = {clean.casefold()}
+    for fact in facts or []:
+        value = re.sub(r"\s+", " ", fact).strip().rstrip(".")
+        key = value.casefold()
+        if value and key not in seen:
+            clean_facts.append(value)
+            seen.add(key)
+    detail = ". ".join(clean_facts[:3])
     if language == "en":
-        verified = f" {detail}." if detail else ""\n        return f"Football update: {clean}.{verified} Follow 90 Plus Gundem for the next verified update."
+        verified = f" {detail}." if detail else ""
+        return f"Football update: {clean}.{verified} Follow 90 Plus Gundem for the next verified update."
     openings = {
         "breaking": "Bir saniye—gündemde yeni bir gelişme var:",
         "question": "Bu gelişme neden önemli?",
@@ -38,7 +54,8 @@ def build_lite_narration(title: str, sources: list[str], language: str = "tr", h
         "direct": "Futbol gündeminden kısa ve net:",
     }
     opening = openings.get(hook or "direct", openings["direct"])
-    verified = f" Doğrulanan diğer başlıklar: {detail}." if detail else ""\n    return f"{opening} {clean}.{verified} Yeni gelişme geldikçe 90+ Gündem aktaracak."
+    verified = f" Doğrulanan diğer başlıklar: {detail}." if detail else ""
+    return f"{opening} {clean}.{verified} Yeni gelişme geldikçe 90+ Gündem aktaracak."
 
 
 def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
