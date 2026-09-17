@@ -29,32 +29,42 @@ def render_shot(image: Path, output: Path, duration: float, motion: str) -> None
     subprocess.run(command, check=True, timeout=90)
 
 
-def stitch_shots(shots: list[Path], output: Path, transitions: list[str] | None = None, durations: list[float] | None = None) -> None:
+def stitch_shots(
+    shots: list[Path],
+    output: Path,
+    transitions: list[str] | None = None,
+    durations: list[float] | None = None,
+) -> None:
     if not shots:
         raise ValueError("No rendered shots")
     if len(shots) == 1:
-        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(shots[0]), "-c", "copy", str(output)], check=True, timeout=90)
+        subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error", "-i", str(shots[0]), "-c", "copy", str(output)],
+            check=True,
+            timeout=90,
+        )
         return
 
     transitions = transitions or ["hard-cut"] * len(shots)
+    shot_durations = durations or [2.2] * len(shots)
     inputs: list[str] = []
     for shot in shots:
         inputs.extend(["-i", str(shot)])
 
-    # Short xfade transitions keep the pace high while avoiding slideshow-like cuts.
-    duration = 0.16
-    offset = 2.04
-    filters = []
+    transition_duration = 0.16
+    offset = max(transition_duration, float(shot_durations[0]) - transition_duration)
+    filters: list[str] = []
     previous = "[0:v]"
     for index in range(1, len(shots)):
         kind = transitions[index % len(transitions)]
         effect = {"whip": "slideleft", "push": "smoothleft", "flash": "fadeblack"}.get(kind, "fade")
         out = f"[v{index}]"
         filters.append(
-            f"{previous}[{index}:v]xfade=transition={effect}:duration={duration:.2f}:offset={offset:.2f}{out}"
+            f"{previous}[{index}:v]xfade=transition={effect}:duration={transition_duration:.2f}:offset={offset:.2f}{out}"
         )
         previous = out
-        if index < len(shots) - 1:\n            offset += max(0.8, float(shot_durations[index]) - duration)
+        if index < len(shots) - 1:
+            offset += max(0.8, float(shot_durations[index]) - transition_duration)
 
     command = [
         "ffmpeg", "-y", "-loglevel", "error", *inputs,
