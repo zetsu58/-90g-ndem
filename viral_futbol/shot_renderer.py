@@ -32,13 +32,34 @@ def render_shot(image: Path, output: Path, duration: float, motion: str) -> None
 def stitch_shots(shots: list[Path], output: Path, transitions: list[str] | None = None) -> None:
     if not shots:
         raise ValueError("No rendered shots")
-    # Keep cuts short and energetic. Transition metadata is accepted now so the\n    # compositor can evolve without changing the render call contract.\n    transitions = transitions or [\"hard-cut\"] * len(shots)\n    concat = output.with_suffix(\".shots.txt\")
-    concat.write_text("\n".join(f"file '{shot.resolve()}'" for shot in shots) + "\n", encoding="utf-8")
-    try:
-        subprocess.run([
-            "ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
-            "-i", str(concat), "-c:v", "libx264", "-preset", "veryfast",
-            "-crf", "20", "-pix_fmt", "yuv420p", "-an", str(output),
-        ], check=True, timeout=180)
-    finally:
-        concat.unlink(missing_ok=True)
+    if len(shots) == 1:
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(shots[0]), "-c", "copy", str(output)], check=True, timeout=90)
+        return
+
+    transitions = transitions or ["hard-cut"] * len(shots)
+    inputs: list[str] = []
+    for shot in shots:
+        inputs.extend(["-i", str(shot)])
+
+    # Short xfade transitions keep the pace high while avoiding slideshow-like cuts.
+    duration = 0.16
+    offset = 2.04
+    filters = []
+    previous = "[0:v]"
+    for index in range(1, len(shots)):
+        kind = transitions[index % len(transitions)]
+        effect = {"whip": "slideleft", "push": "smoothleft", "flash": "fadeblack"}.get(kind, "fade")
+        out = f"[v{index}]"
+        filters.append(
+            f"{previous}[{index}:v]xfade=transition={effect}:duration={duration:.2f}:offset={offset:.2f}{out}"
+        )
+        previous = out
+        offset += max(0.8, 2.6 - duration)
+
+    command = [
+        "ffmpeg", "-y", "-loglevel", "error", *inputs,
+        "-filter_complex", ";".join(filters),
+        "-map", previous, "-an", "-c:v", "libx264", "-preset", "veryfast",
+        "-crf", "20", "-pix_fmt", "yuv420p", str(output),
+    ]
+    subprocess.run(command, check=True, timeout=240)
