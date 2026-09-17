@@ -22,7 +22,7 @@ class YouTubeConfig:
     def from_env(cls) -> "YouTubeConfig":
         privacy=os.getenv("YOUTUBE_PRIVACY_STATUS","private").casefold()
         if privacy not in {"private","unlisted","public"}: privacy="private"
-        return cls(os.getenv("YOUTUBE_ENABLED","false").casefold() in {"1","true","yes","on"},os.getenv("YOUTUBE_CLIENT_ID","").strip(),os.getenv("YOUTUBE_CLIENT_SECRET","").strip(),os.getenv("YOUTUBE_REFRESH_TOKEN","").strip(),privacy,os.getenv("YOUTUBE_CATEGORY_ID","17").strip() or "17",max(1,int(os.getenv("YOUTUBE_MAX_ATTEMPTS","4"))),max(30,int(os.getenv("YOUTUBE_RETRY_SECONDS","900"))))
+        try: max_attempts=max(1,int(os.getenv("YOUTUBE_MAX_ATTEMPTS","4")))\n        except ValueError: max_attempts=4\n        try: retry_seconds=max(30,int(os.getenv("YOUTUBE_RETRY_SECONDS","900")))\n        except ValueError: retry_seconds=900\n        return cls(os.getenv("YOUTUBE_ENABLED","false").casefold() in {"1","true","yes","on"},os.getenv("YOUTUBE_CLIENT_ID","").strip(),os.getenv("YOUTUBE_CLIENT_SECRET","").strip(),os.getenv("YOUTUBE_REFRESH_TOKEN","").strip(),privacy,os.getenv("YOUTUBE_CATEGORY_ID","17").strip() or "17",max_attempts,retry_seconds)
     @property
     def ready(self)->bool: return self.enabled and all((self.client_id,self.client_secret,self.refresh_token))
 
@@ -80,7 +80,7 @@ def _validate_short(path:Path)->dict:
     video=videos[0]; width=int(video.get("width") or 0); height=int(video.get("height") or 0)
     try: duration=float((probe.get("format") or {}).get("duration") or 0)
     except (TypeError,ValueError): duration=0
-    min_seconds=max(5,float(os.getenv("SHORTS_MIN_DURATION_SECONDS","12"))); max_seconds=min(180,float(os.getenv("SHORTS_MAX_DURATION_SECONDS","70")))
+    try: min_seconds=max(5,float(os.getenv("SHORTS_MIN_DURATION_SECONDS","12")))\n    except ValueError: min_seconds=12.0\n    try: max_seconds=min(180,float(os.getenv("SHORTS_MAX_DURATION_SECONDS","70")))\n    except ValueError: max_seconds=70.0
     if duration<min_seconds or duration>max_seconds: raise ValueError(f"Quality gate: duration {duration:.1f}s outside {min_seconds:.0f}-{max_seconds:.0f}s")
     if width<540 or height<960: raise ValueError(f"Quality gate: resolution too low ({width}x{height})")
     if height<=width: raise ValueError(f"Quality gate: video is not vertical ({width}x{height})")
