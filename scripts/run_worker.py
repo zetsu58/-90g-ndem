@@ -85,7 +85,16 @@ def cycle() -> dict:
     else:
         result["youtube"] = {"deferred": True, "reason": "shorts_scan_failed"}
 
-    # Performance collection is deliberately non-blocking: analytics/OAuth trouble\n    # must never stop news scanning, rendering, or publishing.\n    try:\n        result["performance"] = collect_youtube_performance(settings.db_path)\n    except Exception as exc:\n        result["performance"] = {"error": str(exc), "deferred": True}\n        print(f"ViralFutbol performance collector deferred: {exc}", flush=True)\n\n    return result\n
+    # Performance collection is deliberately non-blocking: analytics/OAuth trouble
+    # must never stop news scanning, rendering, or publishing.
+    try:
+        result["performance"] = collect_youtube_performance(settings.db_path)
+    except Exception as exc:
+        result["performance"] = {"error": str(exc), "deferred": True}
+        print(f"ViralFutbol performance collector deferred: {exc}", flush=True)
+
+    return result
+
 
 if __name__ == "__main__":
     print("ViralFutbol V2 autonomous worker + fail-closed quality gates started", flush=True)
