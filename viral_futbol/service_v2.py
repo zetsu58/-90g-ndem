@@ -17,9 +17,9 @@ from .content_strategy import build_content_strategy
 
 def _shorts_min_score() -> int:
     try:
-        return max(0, min(100, int(os.getenv("VIRAL_TREND_MIN_SCORE", "58"))))
+        return max(0, min(100, int(os.getenv("VIRAL_TREND_MIN_SCORE", "42"))))
     except ValueError:
-        return 58
+        return 42
 
 
 def build_v2_payload(cluster, settings, language: str, viral_score: int) -> dict:
