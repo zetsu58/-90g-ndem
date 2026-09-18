@@ -49,6 +49,14 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def do_HEAD(self) -> None:
+        if self.path in {"/", "/health", "/healthz"}:
+            self.send_response(200)
+            self.end_headers()
+        else:
+            self.send_response(404)
+            self.end_headers()
+
     def do_GET(self) -> None:
         if self.path in {"/", "/health", "/healthz"}:
             with LOCK:
