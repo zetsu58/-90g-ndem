@@ -124,22 +124,57 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
             hook = recommended_hook(db_path)
     except Exception as exc:
         print(f"ViralFutbol hook learning deferred: {exc}", flush=True)
-    narration = build_lite_narration(title, sources, language, hook, facts)\n    if db_path:\n        remember_creative(db_path, story_id, hook)\n    card_path = directory / f"{story_id}.png"; audio_path = directory / f"{story_id}.mp3"
+    narration = build_lite_narration(title, sources, language, hook, facts)
+    if db_path:
+        remember_creative(db_path, story_id, hook)
+    card_path = directory / f"{story_id}.png"; audio_path = directory / f"{story_id}.mp3"
     frames = download_pexels_frames(title=title, narration=narration, sources=sources, output_dir=directory, story_id=story_id)
     if not frames: _card(card_path, title, narration, sources)
     try: asyncio.run(_save_speech(narration, _edge_voice(voice_name, language), audio_path))
     except Exception as exc:
         offline_voice = "tr" if language == "tr" else "en-us"; print(f"ViralFutbol Edge TTS unavailable, using offline voice: {exc}", flush=True); subprocess.run(["espeak-ng", "-v", offline_voice, "-s", "175", "-w", str(audio_path), narration], check=True, timeout=60)
-    audio_duration = _media_duration(audio_path)\n    timeline = timeline_plan(title, min(70.0, audio_duration + 0.35))\n    shot_paths = []\n    motion_video = None\n    if frames:\n        for index, shot in enumerate(timeline[\"shots\"]):\n            shot_path = directory / f\"{story_id}-shot-{index}.mp4\"\n            render_shot(frames[index % len(frames)], shot_path, float(shot[\"duration\"]), str(shot[\"motion\"]))\n            shot_paths.append(shot_path)\n        motion_video = directory / f\"{story_id}-motion.mp4\"\n        stitch_shots(shot_paths, motion_video, [str(shot[\"transition\"]) for shot in timeline[\"shots\"]])\n        concat_path = None\n        video_input = [\"-i\", str(motion_video)]\n    else:\n        concat_path = None\n        video_input = [\"-loop\", \"1\", \"-framerate\", \"24\", \"-i\", str(card_path)]
+    audio_duration = _media_duration(audio_path)
+    timeline = timeline_plan(title, min(70.0, audio_duration + 0.35))
+    shot_paths = []
+    motion_video = None
+    if frames:
+        for index, shot in enumerate(timeline["shots"]):
+            shot_path = directory / f"{story_id}-shot-{index}.mp4"
+            render_shot(frames[index % len(frames)], shot_path, float(shot["duration"]), str(shot["motion"]))
+            shot_paths.append(shot_path)
+        motion_video = directory / f"{story_id}-motion.mp4"
+        stitch_shots(shot_paths, motion_video, [str(shot["transition"]) for shot in timeline["shots"]])
+        concat_path = None
+        video_input = ["-i", str(motion_video)]
+    else:
+        concat_path = None
+        video_input = ["-loop", "1", "-framerate", "24", "-i", str(card_path)]
     if motion_video:
         video_filter = "scale=1080:1920:flags=lanczos,eq=contrast=1.04:saturation=1.06,fade=t=in:st=0:d=0.10,fps=30,format=yuv420p"
     else:
         video_filter = "scale=1350:2400:flags=lanczos,crop=1080:1920:x='135+82*sin(t*0.82)+27*sin(t*2.1)':y='240+105*cos(t*0.61)+24*sin(t*1.7)',eq=contrast=1.06:saturation=1.08,fade=t=in:st=0:d=0.10,fps=30,format=yuv420p"
-    try:\n        music_volume = float(os.getenv("SHORTS_MUSIC_VOLUME", "0.20"))\n    except ValueError:\n        music_volume = 0.20\n    music_volume = max(0.05, min(0.35, music_volume))
+    try:
+        music_volume = float(os.getenv("SHORTS_MUSIC_VOLUME", "0.20"))
+    except ValueError:
+        music_volume = 0.20
+    music_volume = max(0.05, min(0.35, music_volume))
     mix = f"[1:a]volume=1.20,acompressor=threshold=0.14:ratio=2.7:attack=4:release=90[voice];[2:a]highpass=f=55,lowpass=f=9000,volume={music_volume}[bed];[bed][voice]sidechaincompress=threshold=0.035:ratio=8:attack=12:release=280[ducked];[voice][ducked]amix=inputs=2:duration=first:dropout_transition=1:normalize=0,alimiter=limit=0.94[a]"
-    music_value = os.getenv("SHORTS_MUSIC_FILE", "").strip()\n    music_path = Path(music_value) if music_value else None\n    if music_path and music_path.is_file():\n        music_input = ["-stream_loop", "-1", "-i", str(music_path)]\n    else:\n        music_input = ["-f", "lavfi", "-i", "aevalsrc=0.30*sin(2*PI*55*t)+0.12*sin(2*PI*110*t)+0.08*sin(2*PI*165*t):s=44100"]\n    command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), *music_input, "-vf", video_filter, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", str(final_path)]
-    try:\n        timeout = max(60, int(os.getenv("LITE_VIDEO_TIMEOUT_SECONDS", "180")))\n    except ValueError:\n        timeout = 180\n    subprocess.run(command, check=True, timeout=timeout)
+    music_value = os.getenv("SHORTS_MUSIC_FILE", "").strip()
+    music_path = Path(music_value) if music_value else None
+    if music_path and music_path.is_file():
+        music_input = ["-stream_loop", "-1", "-i", str(music_path)]
+    else:
+        music_input = ["-f", "lavfi", "-i", "aevalsrc=0.30*sin(2*PI*55*t)+0.12*sin(2*PI*110*t)+0.08*sin(2*PI*165*t):s=44100"]
+    command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), *music_input, "-vf", video_filter, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", str(final_path)]
+    try:
+        timeout = max(60, int(os.getenv("LITE_VIDEO_TIMEOUT_SECONDS", "180")))
+    except ValueError:
+        timeout = 180
+    subprocess.run(command, check=True, timeout=timeout)
     if final_path.stat().st_size < 1024 or b"ftyp" not in final_path.read_bytes()[:64]: raise RuntimeError("Lite video engine did not create a valid MP4")
     card_path.unlink(missing_ok=True); audio_path.unlink(missing_ok=True)
     if concat_path: concat_path.unlink(missing_ok=True)
-    for frame in frames: frame.unlink(missing_ok=True)\n    for shot_path in shot_paths: shot_path.unlink(missing_ok=True)\n    if motion_video: motion_video.unlink(missing_ok=True)\n    return final_path
+    for frame in frames: frame.unlink(missing_ok=True)
+    for shot_path in shot_paths: shot_path.unlink(missing_ok=True)
+    if motion_video: motion_video.unlink(missing_ok=True)
+    return final_path
