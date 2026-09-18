@@ -30,7 +30,12 @@ def _youtube(config: YouTubeConfig):
 
 def _published(db_path: str, limit: int) -> list[dict]:
     db = sqlite3.connect(db_path, timeout=30)
-    db.row_factory = sqlite3.Row\n    try:\n        columns = {row[1] for row in db.execute("PRAGMA table_info(youtube_publications)").fetchall()}\n        if "published_at" not in columns:\n            db.execute("ALTER TABLE youtube_publications ADD COLUMN published_at REAL")\n            db.commit()
+    db.row_factory = sqlite3.Row
+    try:
+        columns = {row[1] for row in db.execute("PRAGMA table_info(youtube_publications)").fetchall()}
+        if "published_at" not in columns:
+            db.execute("ALTER TABLE youtube_publications ADD COLUMN published_at REAL")
+            db.commit()
         rows = db.execute(
             """
             SELECT p.story_id, p.video_id, p.updated_at, p.published_at
@@ -52,9 +57,17 @@ def _chunks(items: list[dict], size: int = 50):
 
 def collect_youtube_performance(db_path: str, limit: int | None = None) -> dict:
     config = YouTubeConfig.from_env()
-    api_key = os.getenv("YOUTUBE_API_KEY", "").strip()\n    analytics_ready = bool(api_key) or config.ready\n    result = {"enabled": config.enabled, "ready": analytics_ready, "auth_mode": "api_key" if api_key else "oauth", "checked": 0, "recorded": 0, "missing": 0}\n    if not analytics_ready:\n        return result
+    api_key = os.getenv("YOUTUBE_API_KEY", "").strip()
+    analytics_ready = bool(api_key) or config.ready
+    result = {"enabled": config.enabled, "ready": analytics_ready, "auth_mode": "api_key" if api_key else "oauth", "checked": 0, "recorded": 0, "missing": 0}
+    if not analytics_ready:
+        return result
 
-    try:\n        analytics_limit = int(os.getenv("YOUTUBE_ANALYTICS_LIMIT", "100"))\n    except ValueError:\n        analytics_limit = 100\n    jobs = _published(db_path, limit or analytics_limit)
+    try:
+        analytics_limit = int(os.getenv("YOUTUBE_ANALYTICS_LIMIT", "100"))
+    except ValueError:
+        analytics_limit = 100
+    jobs = _published(db_path, limit or analytics_limit)
     if not jobs:
         return result
 
@@ -86,7 +99,17 @@ def collect_youtube_performance(db_path: str, limit: int | None = None) -> dict:
                     comments=int(stats.get("commentCount") or 0),
                     age_hours=age_hours,
                 )
-                performance.record(sample)\n                if published_at:\n                    try:\n                        published_epoch = published.timestamp()\n                        db = sqlite3.connect(db_path, timeout=30)\n                        with db:\n                            db.execute("UPDATE youtube_publications SET published_at=? WHERE story_id=?", (published_epoch, str(job["story_id"])))\n                        db.close()\n                    except Exception:\n                        pass\n                result["recorded"] += 1
+                performance.record(sample)
+                if published_at:
+                    try:
+                        published_epoch = published.timestamp()
+                        db = sqlite3.connect(db_path, timeout=30)
+                        with db:
+                            db.execute("UPDATE youtube_publications SET published_at=? WHERE story_id=?", (published_epoch, str(job["story_id"])))
+                        db.close()
+                    except Exception:
+                        pass
+                result["recorded"] += 1
             result["checked"] += len(batch)
             result["missing"] += len(batch) - len(seen)
         result["leaders"] = performance.leaders(5)
