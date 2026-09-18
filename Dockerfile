@@ -2,8 +2,10 @@ FROM python:3.12-slim
 WORKDIR /app
 COPY pyproject.toml README.md /app/
 COPY viral_futbol /app/viral_futbol
+COPY bamloop /app/bamloop
 COPY scripts /app/scripts
-RUN apt-get update \
+RUN python -m compileall -q /app/viral_futbol /app/bamloop /app/scripts \
+    && apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core espeak-ng \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir . \
