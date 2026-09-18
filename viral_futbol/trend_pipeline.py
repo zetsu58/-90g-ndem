@@ -32,7 +32,7 @@ def _score(title: str, sources: int) -> int:
 
 
 def select_trends(settings) -> list[TrendPick]:
-    minimum = max(0, min(100, int(os.getenv("VIRAL_TREND_MIN_SCORE", "58"))))
+    minimum = max(0, min(100, int(os.getenv("VIRAL_TREND_MIN_SCORE", "42"))))
     picks: list[TrendPick] = []
     seen: set[str] = set()
     for cluster in fetch_x_newsroom(settings):
@@ -54,7 +54,7 @@ def select_trends(settings) -> list[TrendPick]:
 def trend_gate(settings) -> dict:
     picks = select_trends(settings)
     return {
-        "minimum_score": int(os.getenv("VIRAL_TREND_MIN_SCORE", "58")),
+        "minimum_score": int(os.getenv("VIRAL_TREND_MIN_SCORE", "42")),
         "accepted": len(picks),
         "top": [asdict(item) for item in picks[:10]],
     }
