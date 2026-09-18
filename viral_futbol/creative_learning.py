@@ -24,7 +24,12 @@ def hook_type(title: str) -> str:
 
 
 def hour_bucket(timestamp: float) -> str:
-    timezone_name = os.getenv("CHANNEL_TIMEZONE", "Europe/Istanbul").strip() or "Europe/Istanbul"\n    try:\n        zone = ZoneInfo(timezone_name)\n    except Exception:\n        zone = ZoneInfo("Europe/Istanbul")\n    hour = datetime.fromtimestamp(timestamp, tz=zone).hour
+    timezone_name = os.getenv("CHANNEL_TIMEZONE", "Europe/Istanbul").strip() or "Europe/Istanbul"
+    try:
+        zone = ZoneInfo(timezone_name)
+    except Exception:
+        zone = ZoneInfo("Europe/Istanbul")
+    hour = datetime.fromtimestamp(timestamp, tz=zone).hour
     if 5 <= hour < 11:
         return "morning"
     if 11 <= hour < 17:
@@ -48,7 +53,11 @@ def creative_report(db_path: str, limit: int = 200) -> dict:
     try:
         rows = db.execute(
             """
-            SELECT m.title, p.score, COALESCE(y.published_at, y.updated_at) AS published_at, c.hook_variant\n            FROM shorts_performance p\n            JOIN youtube_manifests m ON m.story_id=p.story_id\n            JOIN youtube_publications y ON y.story_id=p.story_id\n            LEFT JOIN shorts_creatives c ON c.story_id=p.story_id
+            SELECT m.title, p.score, COALESCE(y.published_at, y.updated_at) AS published_at, c.hook_variant
+            FROM shorts_performance p
+            JOIN youtube_manifests m ON m.story_id=p.story_id
+            JOIN youtube_publications y ON y.story_id=p.story_id
+            LEFT JOIN shorts_creatives c ON c.story_id=p.story_id
             WHERE y.status='published'
             ORDER BY p.updated_at DESC LIMIT ?
             """,
@@ -63,7 +72,8 @@ def creative_report(db_path: str, limit: int = 200) -> dict:
     hours = defaultdict(list)
     for row in rows:
         score = float(row["score"])
-        actual_hook = str(row["hook_variant"] or "").strip()\n        hooks[actual_hook or hook_type(str(row["title"]))].append(score)
+        actual_hook = str(row["hook_variant"] or "").strip()
+        hooks[actual_hook or hook_type(str(row["title"]))].append(score)
         hours[hour_bucket(float(row["published_at"]))].append(score)
 
     hook_report = {}
