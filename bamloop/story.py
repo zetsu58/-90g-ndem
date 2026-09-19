@@ -129,11 +129,11 @@ def select_providers(db, now=None):
     if (provider,image,video) != ('local','local','local') and spent + estimated <= budget:
         # Unsupported providers cannot spend money; fail closed until installed.
         raise RuntimeError('Configured paid AI provider has no installed adapter')
-    return LocalStoryProvider(), LocalImageProvider(), 'local', 0.0, budget
+    return LocalStoryProvider(), LocalImageProvider(), 'zero-cost-local', 0.0, budget
 
 
 def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None = None):
-    story_provider, image_provider, provider, cost, _ = select_providers(None)
+    story_provider, image_provider, provider, cost, _ = select_providers(None)\n    if float(os.getenv('BAMLOOP_DAILY_AI_BUDGET_USD','0')) != 0:\n        raise RuntimeError('Zero-cost mode requires BAMLOOP_DAILY_AI_BUDGET_USD=0')
     story = story_provider.create(seed)
     output = Path(output_dir); output.mkdir(parents=True,exist_ok=True)
     content_hash=hashlib.sha256(story.idea.encode()).hexdigest()[:16]
@@ -143,7 +143,7 @@ def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None
         return final, {'title':story.idea[:90]+' #Shorts','description':'Özgün kısa kurgu. #Shorts #hikaye','tags':['hikaye','shorts','kurgu']}, story, provider, cost
     with tempfile.TemporaryDirectory(dir=output) as tmp:
         folder=Path(tmp); clips=[]
-        for i, scene in enumerate(story.scenes):
+        scene_seconds=max(6,int(os.getenv('BAMLOOP_STORY_SCENE_SECONDS','9')))\n        for i, scene in enumerate(story.scenes):
             frame=folder/f'{i}.png'; clip=folder/f'{i}.mp4'
             image_provider.render(scene,frame,i)
             prop=folder/f'{i}-prop.png'
@@ -152,8 +152,8 @@ def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None
             marker.ellipse((62,55,81,74),fill='#101b2b');marker.ellipse((105,55,124,74),fill='#101b2b')
             overlay.save(prop)
             subprocess.run(['ffmpeg','-y','-loglevel','error','-loop','1','-framerate','24','-i',str(frame),
-                '-loop','1','-framerate','24','-i',str(prop),'-t','9',
-                '-filter_complex',"[0:v]scale=1200:2134,crop=1080:1920:x='60+42*sin(t*0.6)':y='100+42*cos(t*0.5)'[bg];[bg][1:v]overlay=x='300+180*sin(t*1.1)':y='1180+120*cos(t*0.8)':eval=frame,fps=24,format=yuv420p[v]",
+                '-loop','1','-framerate','24','-i',str(prop),'-t',str(scene_seconds),
+                '-filter_complex',"[0:v]scale=1240:2205,crop=1080:1920:x='80+55*sin(t*0.55)':y='140+55*cos(t*0.47)',eq=contrast=1.05:saturation=1.08[bg];[1:v]scale=210:210,format=rgba[prop];[bg][prop]overlay=x='250+230*sin(t*0.9)':y='1160+150*cos(t*0.72)':eval=frame,fade=t=in:st=0:d=.18,fade=t=out:st='max(0,'+str(scene_seconds)+'-.22)':d=.22,fps=30,format=yuv420p[v]",
                 '-map','[v]','-c:v','libx264','-preset','ultrafast','-crf','27','-threads','2',str(clip)],check=True,timeout=180)
             clips.append(clip)
         concat=folder/'list.txt'; concat.write_text(''.join(f"file '{clip}'\n" for clip in clips))
