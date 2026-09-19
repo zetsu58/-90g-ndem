@@ -103,9 +103,10 @@ def run_once_v2(settings) -> dict:
                         store.mark_submitted(story_id, task_id); diagnostics["submitted"] += 1; ld["submitted"] += 1; available_slots -= 1; selected["task_id"] = task_id
                     diagnostics["selected"].append(selected)
                 except Exception as exc:
-                    store.mark_failed(story_id, f"submission failed: {exc}", settings.retry_delay_seconds); diagnostics["submission_failed"] += 1; ld["submission_failed"] += 1
+                    # Keep status useful without leaking URLs, tokens, or API responses.
+                    diagnostics["last_render_error_type"] = type(exc).__name__
+                    store.mark_failed(story_id, f"submission failed: {type(exc).__name__}", settings.retry_delay_seconds); diagnostics["submission_failed"] += 1; ld["submission_failed"] += 1
             diagnostics["languages"][language] = ld
         diagnostics.update(reconciliation); diagnostics["active"] = store.active_count(); diagnostics["status_counts"] = store.status_counts()
         print("ViralFutbol V2 diagnostics: " + json.dumps(diagnostics, ensure_ascii=False), flush=True)
         return diagnostics
-
