@@ -89,6 +89,22 @@ class ProductionTests(unittest.TestCase):
         with patch.dict(os.environ,{'BAMLOOP_IMAGE_PROVIDER':'expensive','BAMLOOP_DAILY_AI_BUDGET_USD':'10'}):
             self.assertRaises(RuntimeError,select_providers,None)
 
+    def test_story_fallback_when_clip_provider_missing(self):
+        from bamloop.pipeline import prepare
+        from bamloop.story import LocalStoryProvider
+        story = LocalStoryProvider().create('fallback-fixture')
+        env = {'MEME_DB_PATH': self.db, 'MEME_OUTPUT_DIR': self.temp.name,
+               'PEXELS_API_KEY': '', 'BAMLOOP_MEME_WEIGHT': '1',
+               'BAMLOOP_AI_STORY_WEIGHT': '1'}
+        with patch.dict(os.environ, env), \
+             patch('bamloop.pipeline.select_type', return_value='meme'), \
+             patch('bamloop.pipeline.build_video', side_effect=AssertionError('unlicensed meme')), \
+             patch('bamloop.pipeline.create_story_video', return_value=(Path(self.temp.name)/'story.mp4', {'title':'Story'},story,'local',0.0)), \
+             patch('bamloop.pipeline._validate_short'):
+            result = prepare()
+        self.assertTrue(result['queued'])
+        self.assertEqual(result['content_type'], 'ai_story')
+
 
 if __name__ == '__main__': unittest.main()
 
