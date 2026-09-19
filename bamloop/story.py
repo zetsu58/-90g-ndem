@@ -88,6 +88,7 @@ class LocalStoryProvider:
 class LocalImageProvider:
     """Original procedural art; never fetches arbitrary unrelated stock."""
     def render(self, scene: Scene, destination: Path, index: int) -> None:
+        rng = random.Random(f'{scene.subject}|{scene.action}|{index}')
         image = Image.new('RGB', (1080,1920), '#101b2b')
         draw = ImageDraw.Draw(image)
         palette = ('#f67362','#f5ba55','#60c6b4','#b38ee7')
@@ -99,10 +100,19 @@ class LocalImageProvider:
             y = (j*193 + index*31) % 1600
             radius = 18 + j % 5 * 15
             draw.ellipse((x-radius,y-radius,x+radius,y+radius),fill='#25364b')
-        draw.ellipse((150,380,930,1160), fill=color)
+        # Layered original scene: horizon, ground, depth objects and a stable hero silhouette.
+        draw.rectangle((0,1120,1080,1920), fill='#172b2b')
+        for j in range(9):
+            x=rng.randint(-80,1000); h=rng.randint(130,420); w=rng.randint(90,230)
+            draw.rounded_rectangle((x,1120-h,x+w,1120),radius=18,fill=('#26384a','#304a43','#3d4055')[j%3])
+            draw.rectangle((x+w//3,1120-h+45,x+2*w//3,1120-h+95),fill='#ffd67a')
+        draw.ellipse((145,365,935,1165), fill=color, outline='#ffffff', width=8)
         draw.ellipse((300,640,420,760),fill='#0b1523')
         draw.ellipse((660,640,780,760),fill='#0b1523')
         draw.arc((390,790,690,940),0,180,fill='#0b1523',width=18)
+        # Consistent accessories make the subject recognizable across scenes.
+        draw.rounded_rectangle((405,1030,675,1125),radius=28,fill='#e8edf2',outline='#0b1523',width=8)
+        draw.ellipse((495,1050,585,1140),fill=color,outline='#0b1523',width=7)
         draw.rounded_rectangle((60,1410,1020,1770),radius=40,fill='#07121f',outline=color,width=7)
         font_path='/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
         font=ImageFont.truetype(font_path,45) if Path(font_path).exists() else ImageFont.load_default()
@@ -173,6 +183,6 @@ def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None
         bed=['-stream_loop','-1','-i',music] if music and Path(music).is_file() else ['-stream_loop','-1','-i',str(instrumental(output/'original-bed.wav'))]
         subprocess.run(['ffmpeg','-y','-loglevel','error','-i',str(visuals),'-i',str(narration),*bed,
             '-filter_complex','[1:a]apad,volume=1.3,asplit=2[side][main];[2:a]volume=0.18[b];[b][side]sidechaincompress=threshold=0.03:ratio=8:detection=rms[d];[main][d]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[a]',
-            '-map','0:v','-map','[a]','-t','36','-c:v','copy','-c:a','aac','-b:a','128k','-movflags','+faststart',str(final)],check=True,timeout=180)
+            '-map','0:v','-map','[a]','-t',str(scene_seconds*len(story.scenes)),'-c:v','copy','-c:a','aac','-b:a','128k','-movflags','+faststart',str(final)],check=True,timeout=180)
     _validate_short(final)
     return final, {'title':story.idea[:90]+' #Shorts','description':'Özgün kısa kurgu. #Shorts #hikaye','tags':['hikaye','shorts','kurgu']}, story, provider, cost
