@@ -147,7 +147,7 @@ class Store:
         self.db = sqlite3.connect(filename, timeout=30)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA busy_timeout = 30000")
-        self.db.execute("PRAGMA journal_mode = DELETE")
+        self.db.execute("PRAGMA journal_mode = WAL")
         self.db.execute("PRAGMA synchronous = FULL")
         self.db.execute(
             "CREATE TABLE IF NOT EXISTS published "
@@ -657,3 +657,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
