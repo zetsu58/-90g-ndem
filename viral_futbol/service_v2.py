@@ -13,6 +13,8 @@ from .viral_engine import evaluate_cluster
 from .visual_quality import build_visual_quality_plan, prioritized_terms
 from .youtube_publisher import remember_manifest
 from .content_strategy import build_content_strategy
+from .source_intelligence import confidence_gate
+from .service import publisher_family
 
 
 def _shorts_min_score() -> int:
@@ -49,7 +51,7 @@ def run_once_v2(settings) -> dict:
     minimum_score = _shorts_min_score()
     with Store(settings.db_path) as store:
         reconciliation = {"completed": 0, "failed": 0, "processing": 0, "unreachable": 0} if settings.dry_run else reconcile_jobs(store, settings)
-        diagnostics = {"fetched": 0, "recent": 0, "verified": 0, "viral_produce": 0, "viral_hold": 0, "viral_ignore": 0, "below_trend_gate": 0, "duplicates": 0, "previewed": 0, "submitted": 0, "generated_lite": 0, "submission_failed": 0, "deferred_capacity": 0, "deferred_retry": 0, "dry_run": settings.dry_run, "trend_min_score": minimum_score, "languages": {}, "selected": []}
+        diagnostics = {"fetched": 0, "recent": 0, "clustered": 0, "verified": 0, "rejected_source": 0, "rejected_conflict": 0, "queued": 0, "rendered": 0, "quality_blocked": 0, "uploaded": 0, "upload_failed": 0, "viral_produce": 0, "viral_hold": 0, "viral_ignore": 0, "below_trend_gate": 0, "duplicates": 0, "previewed": 0, "submitted": 0, "generated_lite": 0, "submission_failed": 0, "deferred_capacity": 0, "deferred_retry": 0, "dry_run": settings.dry_run, "trend_min_score": minimum_score, "languages": {}, "selected": []}
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=settings.max_age_minutes)
         available_slots = min(1, max(0, max(1, settings.max_inflight_tasks) - store.active_count()))
         for language, country, queries in news_editions(settings):
@@ -57,9 +59,14 @@ def run_once_v2(settings) -> dict:
             recent = [s for s in stories if s.published >= cutoff]
             unique_recent = {s.url or s.title: s for s in recent}
             clusters = verified_clusters(list(unique_recent.values()), settings)
+            diagnostics["clustered"] += len(clusters)
             ld = {"fetched": len(stories), "recent": len(recent), "verified": len(clusters), "viral_produce": 0, "viral_hold": 0, "viral_ignore": 0, "below_trend_gate": 0, "duplicates": 0, "previewed": 0, "submitted": 0, "generated_lite": 0, "submission_failed": 0, "deferred_capacity": 0, "deferred_retry": 0}
             diagnostics["fetched"] += len(stories); diagnostics["recent"] += len(recent); diagnostics["verified"] += len(clusters)
             for cluster in clusters:
+                allowed, reason, _ = confidence_gate(cluster, publisher_family)
+                if not allowed:
+                    diagnostics['rejected_conflict' if reason == 'conflict' else 'rejected_source'] += 1
+                    continue
                 decision = evaluate_cluster(cluster)
                 score = decision.score.score
                 if language == "tr" and score < minimum_score:
@@ -86,7 +93,7 @@ def run_once_v2(settings) -> dict:
                 try:
                     if settings.video_engine == "lite":
                         video_path = render_lite_video(story_id=story_id, title=cluster[0].title, sources=sorted({s.publisher for s in cluster}), facts=[s.title for s in cluster[:5]], language=language, voice_name=settings.voice_name if language == "tr" else settings.english_voice_name, output_dir=settings.lite_video_dir)
-                        store.mark_complete(story_id, video_path.resolve().as_uri()); diagnostics["generated_lite"] += 1; ld["generated_lite"] += 1; available_slots -= 1; selected["task_id"] = f"lite:{story_id}"
+                        store.mark_complete(story_id, video_path.resolve().as_uri()); diagnostics["rendered"] += 1; diagnostics["queued"] += 1; diagnostics["generated_lite"] += 1; ld["generated_lite"] += 1; available_slots -= 1; selected["task_id"] = f"lite:{story_id}"
                     else:
                         task_id = submit(payload, settings, idempotency_key=f"viral-futbol:{story_id}")
                         store.mark_submitted(story_id, task_id); diagnostics["submitted"] += 1; ld["submitted"] += 1; available_slots -= 1; selected["task_id"] = task_id
@@ -97,3 +104,4 @@ def run_once_v2(settings) -> dict:
         diagnostics.update(reconciliation); diagnostics["active"] = store.active_count(); diagnostics["status_counts"] = store.status_counts()
         print("ViralFutbol V2 diagnostics: " + json.dumps(diagnostics, ensure_ascii=False), flush=True)
         return diagnostics
+

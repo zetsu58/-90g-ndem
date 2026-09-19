@@ -52,3 +52,31 @@ def assess_sources(cluster, family_resolver) -> SourceQuality:
         score=max(0, min(100, score)),
         reasons=tuple(reasons),
     )
+
+
+REPUTABLE_PUBLISHERS = (
+    'bbc', 'reuters', 'associated press', 'ap news', 'anadolu ajansı', 'aa',
+    'ntv', 'trt spor', 'bein sports', 'sky sports', 'the athletic', 'espn',
+    'guardian', 'marca', 'as', 'l equipe', 'lequipe', 'uefa', 'fifa', 'tff',
+    'galatasaray', 'fenerbahçe', 'beşiktaş', 'trabzonspor',
+)
+CONFLICT_PAIRS = (
+    ('yalanladı','doğruladı'), ('reddetti','kabul etti'),
+    ('ayrıldı','kaldı'), ('iptal','onay'), ('sakat','sağlıklı'),
+)
+
+
+def confidence_gate(cluster, family_resolver):
+    """Reputable breaking stories pass alone; social claims require corroboration."""
+    quality = assess_sources(cluster, family_resolver)
+    titles = [str(s.title).casefold() for s in cluster]
+    for yes, no in CONFLICT_PAIRS:
+        if any(yes in title for title in titles) and any(no in title for title in titles):
+            return False, 'conflict', quality
+    publishers = [str(s.publisher).casefold() for s in cluster]
+    reputable = any(any(name in publisher for name in REPUTABLE_PUBLISHERS) for publisher in publishers)
+    if quality.official_sources or (reputable and quality.low_signal_sources == 0):
+        return True, 'reputable', quality
+    if quality.independent_sources >= 2 and quality.low_signal_sources == 0:
+        return True, 'corroborated', quality
+    return False, 'source', quality

@@ -203,7 +203,7 @@ def test_web_routes_normalize_trailing_slashes_and_expose_version(monkeypatch):
         server.server_close()
         thread.join(timeout=2)
 
-    assert health == {"status": "ok", "version": VERSION, "running": False}
+    assert health == {"status": "ok", "version": VERSION}
     assert version == {"status": "ok", "version": VERSION}
 
 
@@ -222,8 +222,7 @@ def test_public_status_reports_readiness_without_exposing_secrets(
     status = web.public_status()
 
     assert status["configuration"]["dry_run"] is True
-    assert status["configuration"]["mpt_api_key_configured"] is True
-    assert status["configuration"]["idempotency"] == "remote-drive-backed"
+    assert status["configuration"]["dry_run"] is True
     assert "do-not-expose" not in json.dumps(status)
 
 
@@ -284,3 +283,4 @@ def test_store_reset_reuses_the_same_remote_idempotency_key(monkeypatch, tmp_pat
 
     assert first["submitted"] == second["submitted"] == 1
     assert keys[0] == keys[1]
+

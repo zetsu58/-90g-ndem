@@ -49,9 +49,12 @@ def upload(path: Path, metadata: dict) -> str:
         media_body=MediaFileUpload(str(path), mimetype="video/mp4", resumable=True),
     )
     response = None
-    while response is None:
+    for _ in range(120):
+        if response is not None: break
         _, response = request.next_chunk()
+    if response is None: raise TimeoutError("YouTube upload exceeded chunk limit")
     video_id = str((response or {}).get("id") or "")
     if not video_id:
         raise RuntimeError("YouTube upload completed without a video id")
     return video_id
+

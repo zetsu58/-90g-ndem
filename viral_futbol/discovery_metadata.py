@@ -56,7 +56,7 @@ def discovery_metadata(title: str, language: str = "tr") -> dict:
         f"Yeni doğrulanmış gelişmeler için kanalı takip et.\n\n{' '.join(hashtags)}"
     )
 
-    tags = ["futbol", "futbol haberleri", "son dakika futbol"]
+    tags = ["futbol", "futbol haberleri", "son dakika futbol", "shorts"]
     for topic in sorted(topics):
         tags.append(topic.replace("_", " "))
     return {
@@ -65,3 +65,4 @@ def discovery_metadata(title: str, language: str = "tr") -> dict:
         "hashtags": hashtags,
         "tags": list(dict.fromkeys(tags))[:10],
     }
+

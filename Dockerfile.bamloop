@@ -1,10 +1,14 @@
 FROM python:3.12-slim
 WORKDIR /app
 COPY pyproject.toml README.md BAMLOOP.md /app/
+COPY viral_futbol /app/viral_futbol
 COPY bamloop /app/bamloop
+COPY production /app/production
 COPY scripts /app/scripts
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core \
+COPY assets /app/assets
+RUN python -m compileall -q /app/viral_futbol /app/bamloop /app/production /app/scripts \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core espeak-ng \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir . \
     && useradd --create-home --uid 10001 app \
@@ -14,3 +18,4 @@ USER app
 ENV PORT=8080 MEME_OUTPUT_DIR=/data/bamloop MEME_INTERVAL_SECONDS=14400
 EXPOSE 8080
 CMD ["python", "-m", "bamloop.service"]
+

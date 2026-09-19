@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: viral-futbol
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    disk:
+      name: viral-futbol-state
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NEWS_DB_PATH
+        value: /data/viral_futbol.sqlite3
+      - key: LITE_VIDEO_DIR
+        value: /data/viral-videos
+      - key: VIDEO_ENGINE
+        value: lite
+      - key: NEWS_AUTOSTART_WORKER
+        value: "true"
+      - key: NEWS_WORKER_INTERVAL_SECONDS
+        value: "120"
+      - key: NEWS_DRY_RUN
+        value: "false"
+      - key: MAX_SHORTS_PER_DAY
+        value: "5"
+      - key: MIN_HOURS_BETWEEN_SHORTS
+        value: "3"
+      - key: CHANNEL_TIMEZONE
+        value: Europe/Istanbul
+      - key: PUBLISH_QUEUE_ENABLED
+        value: "true"
+      - key: SMART_PUBLISH_SCHEDULING
+        value: "true"
+      - key: YOUTUBE_ENABLED
+        value: "false"
+      - key: YOUTUBE_PRIVACY_STATUS
+        value: private
+      - key: YOUTUBE_CLIENT_ID
+        sync: false
+      - key: YOUTUBE_CLIENT_SECRET
+        sync: false
+      - key: YOUTUBE_REFRESH_TOKEN
+        sync: false

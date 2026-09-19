@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
+from .config import Settings
 
 VERSION = os.getenv("RELEASE_VERSION", "90gundem-2026.09-release")
 _lock = threading.Lock()
@@ -23,7 +24,7 @@ def _run_cycle() -> None:
         _state["last_result"] = cycle()
         _state["last_error"] = None
     except Exception as exc:
-        _state["last_error"] = f"{type(exc).__name__}: {exc}"
+        _state["last_error"] = type(exc).__name__
     finally:
         _state["last_finished_at"] = _timestamp()
         _state["running"] = False
@@ -45,13 +46,23 @@ def start_cycle() -> bool:
 
 
 def public_status() -> dict:
-    from .config import Settings
     from .publishers.x_transport import x_credentials_ready
     from .youtube_publisher import YouTubeConfig
     settings = Settings()
     youtube = YouTubeConfig.from_env()
+    from production.queue import PublishQueue
+    try:
+        with PublishQueue(settings.db_path, 'viral_futbol') as queue:
+            counts=queue.db.execute("SELECT upload_state, COUNT(*) FROM publish_queue WHERE channel='viral_futbol' GROUP BY upload_state").fetchall()
+            by_state={row[0]:row[1] for row in counts}
+            publishing = {**queue.counts(), 'next_publish_slot': queue.next_slot(),
+              'render_count':queue.db.execute("SELECT COUNT(*) FROM publish_queue WHERE channel='viral_futbol'").fetchone()[0],
+              'upload_count':by_state.get('published',0), 'failure_count':by_state.get('failed',0)+by_state.get('quality_blocked',0),
+              'db_persistence_ready': settings.db_path.startswith('/data/')}
+    except Exception:
+        publishing = {'queue_size': None, 'videos_today': None, 'next_publish_slot': None, 'db_persistence_ready': False}
     return {
-        **dict(_state),
+        **dict(_state), **publishing,
         "configuration": {
             "dry_run": settings.dry_run,
             "video_engine": settings.video_engine,
@@ -91,7 +102,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         path = urlsplit(self.path).path.rstrip("/") or "/"
-        if path in {"/", "/health", "/status"}:
+        if path in {'/health','/healthz','/'}:
+            self._reply(200, {'status':'ok','version':VERSION})
+            return
+        if path == '/ready':
+            self._reply(200, {'status':'ready','version':VERSION})
+            return
+        if path == '/status':
             self._reply(200, {"status": "ok", "version": VERSION, **public_status()})
             return
         if path == "/version":
@@ -107,6 +124,11 @@ class Handler(BaseHTTPRequestHandler):
             self._reply(202, {"status": "started", "accepted": True, "version": VERSION})
             return
         self._reply(404, {"error": "not-found", "path": path, "version": VERSION})
+
+    def do_HEAD(self) -> None:
+        path = urlsplit(self.path).path.rstrip('/') or '/'
+        self.send_response(200 if path in {'/','/health','/healthz','/ready','/status'} else 404)
+        self.end_headers()
 
     def log_message(self, fmt: str, *args: object) -> None:
         print(fmt % args, flush=True)
@@ -129,3 +151,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
