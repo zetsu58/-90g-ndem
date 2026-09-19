@@ -69,6 +69,17 @@ class ProductionTests(unittest.TestCase):
         self.assertFalse(confidence_gate([story('Transfer açıklandı','X.com')],publisher_family)[0])
         self.assertEqual(confidence_gate([story('Oyuncu kaldı','Reuters'),story('Oyuncu ayrıldı','BBC')],publisher_family)[1],'conflict')
 
+    def test_single_reputable_source_survives_clustering(self):
+        from dataclasses import replace
+        from viral_futbol.config import Settings
+        from viral_futbol.service import verified_clusters
+        settings=Settings(min_sources=2)
+        story=Story('Kulüp yeni oyuncuyu açıkladı','https://news.google.com/story','Reuters',datetime.now(ZoneInfo('UTC')))
+        self.assertEqual(verified_clusters([story],settings),[])
+        clusters=verified_clusters([story],replace(settings,min_sources=1))
+        self.assertEqual(len(clusters),1)
+        self.assertTrue(confidence_gate(clusters[0],publisher_family)[0])
+
     def test_alternation_and_provider(self):
         self.assertEqual(select_type([{'content_type':'ai_story'}]*3),'meme')
         self.assertEqual(select_providers(None)[2],'local')

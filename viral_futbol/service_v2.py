@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timedelta, timezone
+from dataclasses import replace
 
 from .lite_video import render_lite_video
 from .media_engine import build_media_plan, material_terms
@@ -58,7 +59,10 @@ def run_once_v2(settings) -> dict:
             stories = _fetch_queries(queries, language=language, country=country, workers=settings.fetch_workers)
             recent = [s for s in stories if s.published >= cutoff]
             unique_recent = {s.url or s.title: s for s in recent}
-            clusters = verified_clusters(list(unique_recent.values()), settings)
+            # Cluster all fresh candidates; confidence_gate below decides whether a
+            # single reputable report is publishable. NEWS_MIN_SOURCES must
+            # not discard it before that decision is made.
+            clusters = verified_clusters(list(unique_recent.values()), replace(settings, min_sources=1))
             diagnostics["clustered"] += len(clusters)
             ld = {"fetched": len(stories), "recent": len(recent), "verified": len(clusters), "viral_produce": 0, "viral_hold": 0, "viral_ignore": 0, "below_trend_gate": 0, "duplicates": 0, "previewed": 0, "submitted": 0, "generated_lite": 0, "submission_failed": 0, "deferred_capacity": 0, "deferred_retry": 0}
             diagnostics["fetched"] += len(stories); diagnostics["recent"] += len(recent); diagnostics["verified"] += len(clusters)
