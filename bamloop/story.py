@@ -143,7 +143,8 @@ def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None
         return final, {'title':story.idea[:90]+' #Shorts','description':'Özgün kısa kurgu. #Shorts #hikaye','tags':['hikaye','shorts','kurgu']}, story, provider, cost
     with tempfile.TemporaryDirectory(dir=output) as tmp:
         folder=Path(tmp); clips=[]
-        scene_seconds=max(6,int(os.getenv('BAMLOOP_STORY_SCENE_SECONDS','9')))\n        for i, scene in enumerate(story.scenes):
+        scene_seconds=max(6,int(os.getenv('BAMLOOP_STORY_SCENE_SECONDS','9')))
+        for i, scene in enumerate(story.scenes):
             frame=folder/f'{i}.png'; clip=folder/f'{i}.mp4'
             image_provider.render(scene,frame,i)
             prop=folder/f'{i}-prop.png'
