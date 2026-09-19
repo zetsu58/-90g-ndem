@@ -143,7 +143,7 @@ def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None
         return final, {'title':story.idea[:90]+' #Shorts','description':'Özgün kısa kurgu. #Shorts #hikaye','tags':['hikaye','shorts','kurgu']}, story, provider, cost
     with tempfile.TemporaryDirectory(dir=output) as tmp:
         folder=Path(tmp); clips=[]
-        scene_seconds=max(6,int(os.getenv('BAMLOOP_STORY_SCENE_SECONDS','9')))
+        scene_seconds=max(8,int(os.getenv('BAMLOOP_STORY_SCENE_SECONDS','9')))
         for i, scene in enumerate(story.scenes):
             frame=folder/f'{i}.png'; clip=folder/f'{i}.mp4'
             image_provider.render(scene,frame,i)
@@ -154,7 +154,7 @@ def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None
             overlay.save(prop)
             subprocess.run(['ffmpeg','-y','-loglevel','error','-loop','1','-framerate','24','-i',str(frame),
                 '-loop','1','-framerate','24','-i',str(prop),'-t',str(scene_seconds),
-                '-filter_complex',"[0:v]scale=1240:2205,crop=1080:1920:x='80+55*sin(t*0.55)':y='140+55*cos(t*0.47)',eq=contrast=1.05:saturation=1.08[bg];[1:v]scale=210:210,format=rgba[prop];[bg][prop]overlay=x='250+230*sin(t*0.9)':y='1160+150*cos(t*0.72)':eval=frame,fade=t=in:st=0:d=.18,fade=t=out:st='max(0,'+str(scene_seconds)+'-.22)':d=.22,fps=30,format=yuv420p[v]",
+                '-filter_complex',f"[0:v]scale=1240:2205,crop=1080:1920:x='80+55*sin(t*0.55)':y='140+55*cos(t*0.47)',eq=contrast=1.05:saturation=1.08[bg];[1:v]scale=210:210,format=rgba[prop];[bg][prop]overlay=x='250+230*sin(t*0.9)':y='1160+150*cos(t*0.72)':eval=frame,fade=t=in:st=0:d=0.18,fade=t=out:st={scene_seconds-0.22:.2f}:d=0.22,fps=30,format=yuv420p[v]",
                 '-map','[v]','-c:v','libx264','-preset','ultrafast','-crf','27','-threads','2',str(clip)],check=True,timeout=180)
             clips.append(clip)
         concat=folder/'list.txt'; concat.write_text(''.join(f"file '{clip}'\n" for clip in clips))
