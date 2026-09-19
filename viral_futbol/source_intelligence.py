@@ -58,6 +58,9 @@ REPUTABLE_PUBLISHERS = (
     'bbc', 'reuters', 'associated press', 'ap news', 'anadolu ajansı', 'aa',
     'ntv', 'trt spor', 'bein sports', 'sky sports', 'the athletic', 'espn',
     'guardian', 'marca', 'as', 'l equipe', 'lequipe', 'uefa', 'fifa', 'tff',
+    'fanatik', 'fotomaç', 'fotomac', 'sporx', 'ajansspor', 'a spor',
+    'ht spor', 'habertürk', 'haberturk', 'hürriyet', 'hurriyet',
+    'milliyet', 'sabah', 'cumhuriyet', 'goal.com', 'onefootball',
     'galatasaray', 'fenerbahçe', 'beşiktaş', 'trabzonspor',
 )
 CONFLICT_PAIRS = (
