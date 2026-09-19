@@ -4,7 +4,7 @@ import hashlib
 import os
 import time
 from pathlib import Path
-from production.queue import PublishQueue
+from production.queue import PublishQueue, persistent_render_path
 from viral_futbol.youtube_publisher import _validate_short
 from .engine import build_video, choose_idea
 from .story import create_story_video
@@ -56,7 +56,7 @@ def prepare(*, source_url=None, voice_fixture=None):
 def publish_pending():
     with PublishQueue(db_path(),'bamloop') as queue:
         if not credentials_ready(): return {'uploaded':0,'ready':False,**queue.counts()}
-        if not db_path().startswith('/data/'):
+        if not persistent_render_path(db_path()):
             return {'uploaded':0,'ready':False,'persistence_blocked':True,**queue.counts()}
         job=queue.claim(max_attempts=max(1,int(os.getenv('MEME_YOUTUBE_MAX_ATTEMPTS','4'))))
         if job is None: return {'uploaded':0,'ready':True,**queue.counts()}

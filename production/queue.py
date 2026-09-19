@@ -114,3 +114,8 @@ class PublishQueue:
     def reject(self, content_id, error):
         with self.db:
             self.db.execute("UPDATE publish_queue SET upload_state='quality_blocked',last_error=? WHERE channel=? AND content_id=?",(str(error)[:300],self.channel,content_id))
+
+
+def persistent_render_path(path: str) -> bool:
+    """Free Render containers may contain /data without a mounted disk."""
+    return path.startswith('/data/') and os.path.ismount('/data')
