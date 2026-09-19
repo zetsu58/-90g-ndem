@@ -99,6 +99,7 @@ def _validate_short(path:Path)->dict:
     except ValueError: max_seconds=70.0
     if duration<min_seconds or duration>max_seconds: raise ValueError(f"Quality gate: duration {duration:.1f}s outside {min_seconds:.0f}-{max_seconds:.0f}s")
     if width<int(os.getenv("SHORTS_MIN_WIDTH","1080")) or height<int(os.getenv("SHORTS_MIN_HEIGHT","1920")): raise ValueError(f"Quality gate: resolution too low ({width}x{height})")
+    if video.get('codec_name') != 'h264' or audios[0].get('codec_name') != 'aac': raise ValueError('Quality gate: H.264/AAC required')
     if height<=width: raise ValueError(f"Quality gate: video is not vertical ({width}x{height})")
     if path.stat().st_size<100_000: raise ValueError(f"Quality gate: file too small ({path.stat().st_size} bytes)")
     return {"duration":round(duration,2),"width":width,"height":height,"video_codec":video.get("codec_name"),"audio_codec":audios[0].get("codec_name"),"bytes":path.stat().st_size}
@@ -117,28 +118,58 @@ def _upload(path:Path,job:dict,config:YouTubeConfig)->str:
     from googleapiclient.http import MediaFileUpload
     credentials=Credentials(token=None,refresh_token=config.refresh_token,token_uri="https://oauth2.googleapis.com/token",client_id=config.client_id,client_secret=config.client_secret,scopes=["https://www.googleapis.com/auth/youtube.upload"]); youtube=build("youtube","v3",credentials=credentials,cache_discovery=False); title,description,tags=_metadata(job)
     request=youtube.videos().insert(part="snippet,status",body={"snippet":{"title":title,"description":description,"tags":tags,"categoryId":config.category_id,"defaultLanguage":str(job.get("language") or "tr")},"status":{"privacyStatus":config.privacy_status,"selfDeclaredMadeForKids":False}},media_body=MediaFileUpload(str(path),mimetype="video/mp4",chunksize=8*1024*1024,resumable=True)); response=None
-    while response is None: _,response=request.next_chunk()
+    for _ in range(120):
+        if response is not None: break
+        _,response=request.next_chunk()
+    if response is None: raise TimeoutError("YouTube upload exceeded chunk limit")
     video_id=str((response or {}).get("id") or "")
     if not video_id: raise RuntimeError("YouTube accepted upload without a video id")
     return video_id
 
 
 def publish_ready(settings,limit:int=2)->dict:
-    config=YouTubeConfig.from_env(); result={"enabled":config.enabled,"ready":config.ready,"published":0,"failed":0,"quality_blocked":0,"skipped":0,"validated":[]}
-    if not config.ready: return result
-    with PublicationStore(settings.db_path) as store:
-        for job in store.ready_jobs(limit):
-            story_id=str(job["story_id"])
-            if not store.claim(story_id): result["skipped"]+=1; continue
+    """Queue completed renders and publish only in this channel's valid slot."""
+    from production.queue import PublishQueue
+    config=YouTubeConfig.from_env()
+    result={"enabled":config.enabled,"ready":config.ready,"published":0,"failed":0,"quality_blocked":0,"skipped":0,"validated":[]}
+    with PublicationStore(settings.db_path) as manifests, PublishQueue(settings.db_path,'viral_futbol') as queue:
+        # Discovery and rendering continue even while YouTube is unavailable.
+        for job in manifests.ready_jobs(limit=100):
+            story_id=str(job['story_id'])
+            queue.enqueue(story_id,'football',str(job['title']),story_id,str(job['output_url']),job)
+        result.update(queue.counts())
+        result['next_publish_slot']=queue.next_slot()
+        if not config.ready: return result
+        if not str(settings.db_path).startswith('/data/'):
+            result['ready']=False
+            result['persistence_blocked']=True
+            return result
+        for _ in range(max(0,limit)):
+            job=queue.claim(max_attempts=config.max_attempts)
+            if job is None: break
+            story_id=str(job['content_id'])
             try:
-                with tempfile.TemporaryDirectory(prefix="viral-futbol-") as directory:
-                    video_path=Path(directory)/f"{story_id}.mp4"; _download(str(job["output_url"]),video_path,settings.mpt_api_key,settings.mpt_request_timeout)
+                with tempfile.TemporaryDirectory(prefix='viral-futbol-') as directory:
+                    video_path=Path(directory)/f'{story_id}.mp4'
+                    _download(str(job['video_path']),video_path,settings.mpt_api_key,settings.mpt_request_timeout)
                     try: quality=_validate_short(video_path)
                     except ValueError as exc:
-                        result["quality_blocked"]+=1; store.rejected(story_id,f"{type(exc).__name__}: {exc}"); continue
-                    result["validated"].append({"story_id":story_id,**quality}); video_id=_upload(video_path,job,config)
-                store.published(story_id,video_id); result["published"]+=1
+                        result['quality_blocked']+=1; queue.reject(story_id,exc); continue
+                    result['validated'].append({'story_id':story_id,**quality})
+                    video_id=_upload(video_path,json.loads(job['metadata']),config)
+                queue.published(story_id,video_id)
+                result['published']+=1
+                try:
+                    manifests.claim(story_id)
+                    manifests.published(story_id,video_id)
+                except Exception:
+                    print(f'ViralFutbol performance indexing deferred ({story_id})',flush=True)
             except Exception as exc:
-                store.failed(story_id,f"{type(exc).__name__}: {exc}",config.retry_seconds); result["failed"]+=1; print(f"ViralFutbol YouTube upload failed ({story_id}): {exc}",flush=True)
-        result["status_counts"]=store.counts()
+                queue.failed(story_id,type(exc).__name__)
+                result['failed']+=1
+                # Avoid printing HTTP error bodies that might include credentials.
+                print(f'ViralFutbol YouTube upload failed ({story_id}): {type(exc).__name__}',flush=True)
+        result.update(queue.counts())
+        result['next_publish_slot']=queue.next_slot()
+        result['status_counts']=manifests.counts()
     return result

@@ -6,12 +6,18 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from scripts.run_meme_worker import cycle
+from bamloop.pipeline import cycle, db_path
+from production.queue import PublishQueue
+from bamloop.youtube import credentials_ready
 
 STATE: dict = {
     "service": "bamloop",
     "status": "starting",
     "last_run": None,
+    "running": False,
+    "render_count": 0,
+    "upload_count": 0,
+    "failure_count": 0,
     "last_success": None,
     "last_error": None,
     "last_result": None,
@@ -30,12 +36,15 @@ def worker() -> None:
     time.sleep(startup_delay)
     while True:
         started = int(time.time())
-        _set(status="working", last_run=started, last_error=None)
+        _set(status="working", running=True, last_run=started, last_error=None)
         try:
             result = cycle()
-            _set(status="idle", last_success=int(time.time()), last_result=result)
+            _set(status="idle", running=False, last_success=int(time.time()), last_result=result,
+                last_content_type=(result.get('prepare') or {}).get('content_type'),
+                render_count=STATE['render_count'] + int(bool((result.get('prepare') or {}).get('queued'))),
+                upload_count=STATE['upload_count'] + sum(int((result.get(k) or {}).get('uploaded',0)) for k in ('publish','publish_after_prepare')))
         except Exception as exc:
-            _set(status="error", last_error=f"{type(exc).__name__}: {exc}"[:500])
+            _set(status="error", running=False, failure_count=STATE["failure_count"]+1, last_error=f"{type(exc).__name__}"[:100])
         elapsed = int(time.time()) - started
         time.sleep(max(60, interval - elapsed))
 
@@ -50,7 +59,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_HEAD(self) -> None:
-        if self.path in {"/", "/health", "/healthz"}:
+        if self.path in {"/", "/health", "/healthz", "/ready", "/status"}:
             self.send_response(200)
             self.end_headers()
         else:
@@ -58,12 +67,26 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_GET(self) -> None:
-        if self.path in {"/", "/health", "/healthz"}:
-            with LOCK:
-                snapshot = dict(STATE)
-            self._reply(200, snapshot)
+        if self.path in {'/','/health','/healthz','/ready'}:
+            self._reply(200, {'status':'ok'})
+        elif self.path == '/status':
+            with LOCK: snapshot = dict(STATE)
+            try:
+                with PublishQueue(db_path(),'bamloop') as queue:
+                    snapshot.update(queue.counts())
+                    snapshot['next_publish_slot']=queue.next_slot()
+                    snapshot['daily_ai_spend']=0.0
+                    snapshot['daily_ai_budget']=float(os.getenv('BAMLOOP_DAILY_AI_BUDGET_USD','0'))
+                    snapshot['ai_provider']=os.getenv('BAMLOOP_STORY_PROVIDER','local')
+                    snapshot['youtube_credentials_ready']=credentials_ready()
+                    snapshot['youtube_enabled']=os.getenv('MEME_YOUTUBE_ENABLED','false').casefold() in {'1','true','yes','on'}
+                    snapshot['youtube_privacy_status']=os.getenv('MEME_YOUTUBE_PRIVACY_STATUS','private')
+                    snapshot['db_persistence_ready']=db_path().startswith('/data/')
+            except Exception:
+                snapshot['db_persistence_ready']=False
+            self._reply(200,snapshot)
         else:
-            self._reply(404, {"error": "not_found"})
+            self._reply(404, {'error':'not_found'})
 
     def log_message(self, format: str, *args: object) -> None:
         return
@@ -78,3 +101,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

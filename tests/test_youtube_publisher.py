@@ -51,5 +51,6 @@ def test_metadata_is_short_compatible():
     })
     assert title.endswith("#Shorts")
     assert len(title) <= 100
-    assert "Kaynak yayıncılar: TFF, BBC" in description
+    assert "Kaynak yayıncılar:" not in description
     assert "shorts" in tags
+

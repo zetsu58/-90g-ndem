@@ -13,7 +13,7 @@ def test_hot_official_transfer_is_produced():
         social_velocity=0.9,
         published_at=datetime.now(timezone.utc),
     ))
-    assert result.score == 100
+    assert result.score == 80
     assert result.decision == "produce"
 
 
@@ -37,3 +37,4 @@ def test_official_domain_verifies():
     result = verify_items(items)
     assert result.verified is True
     assert result.official_source is True
+

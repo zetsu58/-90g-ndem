@@ -14,6 +14,7 @@ from .creative_learning import recommended_hook
 from .video_timeline import timeline_plan
 from .shot_renderer import render_shot, stitch_shots
 from .creative_store import remember_creative
+from production.music import instrumental
 
 
 def _edge_voice(configured: str, language: str) -> str:
@@ -54,8 +55,13 @@ def build_lite_narration(
         "direct": "Futbol gündeminden kısa ve net:",
     }
     opening = openings.get(hook or "direct", openings["direct"])
-    verified = f" Doğrulanan diğer başlıklar: {detail}." if detail else ""
-    return f"{opening} {clean}.{verified} Yeni gelişme geldikçe 90+ Gündem aktaracak."
+    verified = f" Ayrıntılarda öne çıkanlar: {detail}." if detail else ""
+    caution = (" Henüz açıklanmayan ayrıntılar kesinleşmiş gibi aktarılmamalı."
+               " Gelişmenin nasıl sonuçlanacağına ilişkin yeni bilgiler bekleniyor.") if not detail else ""
+    return (f"{clean}. {opening}"
+            f"{verified}{caution} Şu an bilinen ile olasılıkları birbirinden ayırmak önemli."
+            " Yeni bir resmî açıklama gelirse gelişmenin yönü daha net anlaşılacak."
+            " Sizce bu gelişmenin devamında ne olur? 90+ Gündem'de takipte kalın.")
 
 
 def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -129,7 +135,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
         remember_creative(db_path, story_id, hook)
     card_path = directory / f"{story_id}.png"; audio_path = directory / f"{story_id}.mp3"
     frames = download_pexels_frames(title=title, narration=narration, sources=sources, output_dir=directory, story_id=story_id)
-    if not frames: _card(card_path, title, narration, sources)
+    if not frames: raise ValueError("No licensed story-relevant imagery; publishing blocked")
     try: asyncio.run(_save_speech(narration, _edge_voice(voice_name, language), audio_path))
     except Exception as exc:
         offline_voice = "tr" if language == "tr" else "en-us"; print(f"ViralFutbol Edge TTS unavailable, using offline voice: {exc}", flush=True); subprocess.run(["espeak-ng", "-v", offline_voice, "-s", "175", "-w", str(audio_path), narration], check=True, timeout=60)
@@ -143,7 +149,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
             render_shot(frames[index % len(frames)], shot_path, float(shot["duration"]), str(shot["motion"]))
             shot_paths.append(shot_path)
         motion_video = directory / f"{story_id}-motion.mp4"
-        stitch_shots(shot_paths, motion_video, [str(shot["transition"]) for shot in timeline["shots"]])
+        stitch_shots(shot_paths, motion_video, [str(shot["transition"]) for shot in timeline["shots"]], [float(shot["duration"]) for shot in timeline["shots"]])
         concat_path = None
         video_input = ["-i", str(motion_video)]
     else:
@@ -158,13 +164,13 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     except ValueError:
         music_volume = 0.20
     music_volume = max(0.05, min(0.35, music_volume))
-    mix = f"[1:a]volume=1.20,acompressor=threshold=0.14:ratio=2.7:attack=4:release=90[voice];[2:a]highpass=f=55,lowpass=f=9000,volume={music_volume}[bed];[bed][voice]sidechaincompress=threshold=0.035:ratio=8:attack=12:release=280[ducked];[voice][ducked]amix=inputs=2:duration=first:dropout_transition=1:normalize=0,alimiter=limit=0.94[a]"
+    mix = f"[1:a]volume=1.20,acompressor=threshold=0.14:ratio=2.7:attack=4:release=90,asplit=2[side][voice];[2:a]highpass=f=55,lowpass=f=9000,volume={music_volume}[bed];[bed][side]sidechaincompress=threshold=0.035:ratio=8:attack=12:release=280[ducked];[voice][ducked]amix=inputs=2:duration=first:dropout_transition=1:normalize=0,alimiter=limit=0.94[a]"
     music_value = os.getenv("SHORTS_MUSIC_FILE", "").strip()
     music_path = Path(music_value) if music_value else None
     if music_path and music_path.is_file():
         music_input = ["-stream_loop", "-1", "-i", str(music_path)]
     else:
-        music_input = ["-f", "lavfi", "-i", "aevalsrc=0.30*sin(2*PI*55*t)+0.12*sin(2*PI*110*t)+0.08*sin(2*PI*165*t):s=44100"]
+        music_input = ["-stream_loop", "-1", "-i", str(instrumental(directory / "original-bed.wav"))]
     command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), *music_input, "-vf", video_filter, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", str(final_path)]
     try:
         timeout = max(60, int(os.getenv("LITE_VIDEO_TIMEOUT_SECONDS", "180")))
@@ -178,3 +184,4 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     for shot_path in shot_paths: shot_path.unlink(missing_ok=True)
     if motion_video: motion_video.unlink(missing_ok=True)
     return final_path
+
