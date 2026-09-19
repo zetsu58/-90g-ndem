@@ -140,6 +140,10 @@ def publish_ready(settings,limit:int=2)->dict:
         result.update(queue.counts())
         result['next_publish_slot']=queue.next_slot()
         if not config.ready: return result
+        if not str(settings.db_path).startswith('/data/'):
+            result['ready']=False
+            result['persistence_blocked']=True
+            return result
         for _ in range(max(0,limit)):
             job=queue.claim(max_attempts=config.max_attempts)
             if job is None: break

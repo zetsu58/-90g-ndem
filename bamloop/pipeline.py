@@ -56,6 +56,8 @@ def prepare(*, source_url=None, voice_fixture=None):
 def publish_pending():
     with PublishQueue(db_path(),'bamloop') as queue:
         if not credentials_ready(): return {'uploaded':0,'ready':False,**queue.counts()}
+        if not db_path().startswith('/data/'):
+            return {'uploaded':0,'ready':False,'persistence_blocked':True,**queue.counts()}
         job=queue.claim(max_attempts=max(1,int(os.getenv('MEME_YOUTUBE_MAX_ATTEMPTS','4'))))
         if job is None: return {'uploaded':0,'ready':True,**queue.counts()}
         import json
