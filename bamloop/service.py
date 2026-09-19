@@ -60,14 +60,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_HEAD(self) -> None:
         if self.path in {"/", "/health", "/healthz", "/ready", "/status"}:
-            self.send_response(200)
+            self.send_response(200 if self.path != '/ready' or _publish_ready() else 503)
             self.end_headers()
         else:
             self.send_response(404)
             self.end_headers()
 
     def do_GET(self) -> None:
-        if self.path in {'/','/health','/healthz','/ready'}:
+        if self.path == '/ready':
+            ready = _publish_ready()
+            self._reply(200 if ready else 503, {'status':'ready' if ready else 'persistence_required'})
+        elif self.path in {'/','/health','/healthz'}:
             self._reply(200, {'status':'ok'})
         elif self.path == '/status':
             with LOCK: snapshot = dict(STATE)
@@ -82,14 +85,23 @@ class Handler(BaseHTTPRequestHandler):
                     snapshot['youtube_enabled']=os.getenv('MEME_YOUTUBE_ENABLED','false').casefold() in {'1','true','yes','on'}
                     snapshot['youtube_privacy_status']=os.getenv('MEME_YOUTUBE_PRIVACY_STATUS','private')
                     snapshot['db_persistence_ready']=persistent_render_path(db_path())
+                    snapshot['publishing_ready']=credentials_ready() and snapshot['db_persistence_ready']
+                    snapshot['persistence_blocked']=snapshot['youtube_enabled'] and not snapshot['db_persistence_ready']
             except Exception:
                 snapshot['db_persistence_ready']=False
+                snapshot['publishing_ready']=False
             self._reply(200,snapshot)
         else:
             self._reply(404, {'error':'not_found'})
 
     def log_message(self, format: str, *args: object) -> None:
         return
+
+
+def _publish_ready() -> bool:
+    """Worker health is separate from durable YouTube publishing readiness."""
+    enabled = os.getenv('MEME_YOUTUBE_ENABLED','false').casefold() in {'1','true','yes','on'}
+    return not enabled or persistent_render_path(db_path())
 
 
 def main() -> None:
@@ -101,4 +113,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
