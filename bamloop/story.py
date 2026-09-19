@@ -129,11 +129,11 @@ def select_providers(db, now=None):
     if (provider,image,video) != ('local','local','local') and spent + estimated <= budget:
         # Unsupported providers cannot spend money; fail closed until installed.
         raise RuntimeError('Configured paid AI provider has no installed adapter')
-    return LocalStoryProvider(), LocalImageProvider(), 'zero-cost-local', 0.0, budget
+    return LocalStoryProvider(), LocalImageProvider(), 'local', 0.0, budget
 
 
 def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None = None):
-    story_provider, image_provider, provider, cost, _ = select_providers(None)\n    if float(os.getenv('BAMLOOP_DAILY_AI_BUDGET_USD','0')) != 0:\n        raise RuntimeError('Zero-cost mode requires BAMLOOP_DAILY_AI_BUDGET_USD=0')
+    story_provider, image_provider, provider, cost, _ = select_providers(None)
     story = story_provider.create(seed)
     output = Path(output_dir); output.mkdir(parents=True,exist_ok=True)
     content_hash=hashlib.sha256(story.idea.encode()).hexdigest()[:16]
