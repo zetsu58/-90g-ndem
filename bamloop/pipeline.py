@@ -31,6 +31,10 @@ def prepare(*, source_url=None, voice_fixture=None):
     with PublishQueue(db_path(),'bamloop') as queue:
         recent=queue.recent(30)
         kind=select_type(recent)
+        # Meme clips require a licensed source. Keep producing original stories
+        # when the clip provider is unavailable instead of failing the cycle.
+        if kind == 'meme' and source_url is None and not os.getenv('PEXELS_API_KEY', '').strip():
+            kind = 'ai_story'
         if kind=='meme':
             idea=choose_idea(str(time.time_ns()),{row['idea'] for row in recent[:16]})
             video, metadata=build_video(idea,os.getenv('MEME_OUTPUT_DIR','storage/bamloop'),source_url)
