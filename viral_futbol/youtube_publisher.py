@@ -129,7 +129,7 @@ def _upload(path:Path,job:dict,config:YouTubeConfig)->str:
 
 def publish_ready(settings,limit:int=2)->dict:
     """Queue completed renders and publish only in this channel's valid slot."""
-    from production.queue import PublishQueue
+    from production.queue import PublishQueue, persistent_render_path
     config=YouTubeConfig.from_env()
     result={"enabled":config.enabled,"ready":config.ready,"published":0,"failed":0,"quality_blocked":0,"skipped":0,"validated":[]}
     with PublicationStore(settings.db_path) as manifests, PublishQueue(settings.db_path,'viral_futbol') as queue:
@@ -140,7 +140,7 @@ def publish_ready(settings,limit:int=2)->dict:
         result.update(queue.counts())
         result['next_publish_slot']=queue.next_slot()
         if not config.ready: return result
-        if not str(settings.db_path).startswith('/data/'):
+        if not persistent_render_path(str(settings.db_path)):
             result['ready']=False
             result['persistence_blocked']=True
             return result

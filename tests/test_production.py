@@ -126,3 +126,12 @@ class WorkerIsolationTests(unittest.TestCase):
             with self.assertRaises(StopIteration): service.worker()
         self.assertEqual(service.STATE['status'],'error')
         self.assertFalse(service.STATE['running'])
+
+class DiskReadinessTests(unittest.TestCase):
+    def test_path_requires_actual_mount(self):
+        from production.queue import persistent_render_path
+        with patch('production.queue.os.path.ismount',return_value=False):
+            self.assertFalse(persistent_render_path('/data/queue.sqlite3'))
+        with patch('production.queue.os.path.ismount',return_value=True):
+            self.assertTrue(persistent_render_path('/data/queue.sqlite3'))
+            self.assertFalse(persistent_render_path('storage/queue.sqlite3'))

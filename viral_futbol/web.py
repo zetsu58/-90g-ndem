@@ -50,7 +50,7 @@ def public_status() -> dict:
     from .youtube_publisher import YouTubeConfig
     settings = Settings()
     youtube = YouTubeConfig.from_env()
-    from production.queue import PublishQueue
+    from production.queue import PublishQueue, persistent_render_path
     try:
         with PublishQueue(settings.db_path, 'viral_futbol') as queue:
             counts=queue.db.execute("SELECT upload_state, COUNT(*) FROM publish_queue WHERE channel='viral_futbol' GROUP BY upload_state").fetchall()
@@ -58,7 +58,7 @@ def public_status() -> dict:
             publishing = {**queue.counts(), 'next_publish_slot': queue.next_slot(),
               'render_count':queue.db.execute("SELECT COUNT(*) FROM publish_queue WHERE channel='viral_futbol'").fetchone()[0],
               'upload_count':by_state.get('published',0), 'failure_count':by_state.get('failed',0)+by_state.get('quality_blocked',0),
-              'db_persistence_ready': settings.db_path.startswith('/data/')}
+              'db_persistence_ready': persistent_render_path(settings.db_path)}
     except Exception:
         publishing = {'queue_size': None, 'videos_today': None, 'next_publish_slot': None, 'db_persistence_ready': False}
     return {

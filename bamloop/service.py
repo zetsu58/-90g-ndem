@@ -7,7 +7,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from bamloop.pipeline import cycle, db_path
-from production.queue import PublishQueue
+from production.queue import PublishQueue, persistent_render_path
 from bamloop.youtube import credentials_ready
 
 STATE: dict = {
@@ -81,7 +81,7 @@ class Handler(BaseHTTPRequestHandler):
                     snapshot['youtube_credentials_ready']=credentials_ready()
                     snapshot['youtube_enabled']=os.getenv('MEME_YOUTUBE_ENABLED','false').casefold() in {'1','true','yes','on'}
                     snapshot['youtube_privacy_status']=os.getenv('MEME_YOUTUBE_PRIVACY_STATUS','private')
-                    snapshot['db_persistence_ready']=db_path().startswith('/data/')
+                    snapshot['db_persistence_ready']=persistent_render_path(db_path())
             except Exception:
                 snapshot['db_persistence_ready']=False
             self._reply(200,snapshot)
