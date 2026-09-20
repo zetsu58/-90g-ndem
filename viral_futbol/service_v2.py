@@ -35,7 +35,7 @@ def build_v2_payload(cluster, settings, language: str, viral_score: int) -> dict
     retention = build_retention_plan(viral_score)
     media_terms = prioritized_terms(material_terms(media_plan), visual_plan)
     payload["video_script_prompt"] = build_script_prompt(title=cluster[0].title, facts=facts, target_seconds=40) + "\n\nRETENTION:\n" + retention_instruction(retention)
-    payload["custom_system_prompt"] = "Sen Viral Futbol'un kıdemli Türkçe Shorts editörüsün. Yalnızca doğrulanmış girdileri kullan. İlk iki saniye izleyiciyi yakalamalı; clickbait uğruna gerçeği bozma. Kısa cümleler ve yüksek tempo kullan. Yalnızca doğal, tek parça seslendirme metni döndür. İçerik öncelik puanı: %d/100." % viral_score
+    payload["custom_system_prompt"] = "Sen Viral Futbol'un kıdemli Türkçe Shorts editörüsün. Yalnızca verilen haberlerdeki olguları kullan. Tek kaynaklı iddiaları kesinleşmiş olay gibi sunma. İlk iki saniye izleyiciyi yakalamalı; clickbait uğruna gerçeği bozma. Kısa cümleler ve yüksek tempo kullan. Yalnızca doğal, tek parça seslendirme metni döndür. İçerik öncelik puanı: %d/100." % viral_score
     if media_terms:
         payload["video_subject"] = f"{cluster[0].title} | " + ", ".join(media_terms[:6])
     payload["match_materials_to_script"] = True
