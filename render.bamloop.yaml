@@ -10,6 +10,10 @@ services:
         value: storage/bamloop
       - key: PUBLISH_DIRECT_ENABLED
         value: "true"
+      - key: PUBLISH_LEDGER_REQUIRED
+        value: "true"
+      - key: GITHUB_LEDGER_TOKEN
+        sync: false
       - key: MEME_INTERVAL_SECONDS
         value: "14400"
       - key: MEME_STARTUP_DELAY_SECONDS
