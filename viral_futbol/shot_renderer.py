@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -18,12 +19,14 @@ def _motion_filter(motion: str) -> str:
 
 
 def render_shot(image: Path, output: Path, duration: float, motion: str) -> None:
+    seconds = max(0.8, duration)
+    visual_filter = _motion_filter(motion) + f",fade=t=in:st=0:d=0.12,fade=t=out:st={seconds-0.12:.2f}:d=0.12"
     command = [
-        "ffmpeg", "-y", "-loglevel", "error",
+        "ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1",
         "-loop", "1", "-framerate", "30", "-i", str(image),
-        "-t", f"{max(0.8, duration):.2f}",
-        "-vf", _motion_filter(motion),
-        "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        "-t", f"{seconds:.2f}",
+        "-vf", visual_filter,
+        "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "1",
         "-pix_fmt", "yuv420p", str(output),
     ]
     subprocess.run(command, check=True, timeout=90)
@@ -45,31 +48,12 @@ def stitch_shots(
         )
         return
 
-    transitions = transitions or ["hard-cut"] * len(shots)
-    shot_durations = durations or [2.2] * len(shots)
-    inputs: list[str] = []
-    for shot in shots:
-        inputs.extend(["-i", str(shot)])
-
-    transition_duration = 0.16
-    offset = max(transition_duration, float(shot_durations[0]) - transition_duration)
-    filters: list[str] = []
-    previous = "[0:v]"
-    for index in range(1, len(shots)):
-        kind = transitions[index % len(transitions)]
-        effect = {"whip": "slideleft", "push": "smoothleft", "flash": "fadeblack"}.get(kind, "fade")
-        out = f"[v{index}]"
-        filters.append(
-            f"{previous}[{index}:v]xfade=transition={effect}:duration={transition_duration:.2f}:offset={offset:.2f}{out}"
-        )
-        previous = out
-        if index < len(shots) - 1:
-            offset += max(0.8, float(shot_durations[index]) - transition_duration)
-
-    command = [
-        "ffmpeg", "-y", "-loglevel", "error", *inputs,
-        "-filter_complex", ";".join(filters),
-        "-map", previous, "-an", "-c:v", "libx264", "-preset", "veryfast",
-        "-crf", "20", "-pix_fmt", "yuv420p", str(output),
-    ]
-    subprocess.run(command, check=True, timeout=240)
+    # xfade keeps every 1080p input open simultaneously and OOMs on Render's
+    # 512 MB instance. Each shot already carries a short fade transition.
+    with tempfile.TemporaryDirectory(prefix="shorts-concat-") as directory:
+        manifest = Path(directory) / "clips.txt"
+        manifest.write_text("".join(f"file '{shot.resolve()}'\n" for shot in shots))
+        subprocess.run([
+            "ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
+            "-i", str(manifest), "-an", "-c", "copy", str(output),
+        ], check=True, timeout=90)
