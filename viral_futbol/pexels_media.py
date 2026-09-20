@@ -99,8 +99,11 @@ def _render_frame(photo_path: Path, output_path: Path, title: str, phrase: str, 
     image=Image.alpha_composite(image,shade).convert("RGB"); draw=ImageDraw.Draw(image); accent="#ff2438"; draw.rounded_rectangle((44,36,1036,172),radius=16,fill="#050505",outline=accent,width=2)
     logo_path=Path(__file__).resolve().parents[1]/"assets"/"90gundem-logo-v2.png"
     if logo_path.exists():
-        with Image.open(logo_path) as logo_opened: logo=ImageOps.contain(logo_opened.convert("RGBA"),(116,116),method=Image.Resampling.LANCZOS)
-        image.paste(logo,(62,46),logo); draw=ImageDraw.Draw(image)
+        try:
+            with Image.open(logo_path) as logo_opened: logo=ImageOps.contain(logo_opened.convert("RGBA"),(116,116),method=Image.Resampling.LANCZOS)
+            image.paste(logo,(62,46),logo); draw=ImageDraw.Draw(image)
+        except (OSError, ValueError):
+            print("ViralFutbol optional logo unavailable", flush=True)
     draw.text((204,80),"SON DAKİKA  •  90+ GÜNDEM",font=_font(36,True),fill="white"); draw.rounded_rectangle((56,1260,680,1360),radius=15,fill=accent); draw.text((96,1288),_story_label(title),font=_font(18,True),fill="#06101c")
     display_text=title if index==0 else phrase; y=1420
     for line in _lines(display_text,29,4): draw.text((58,y),line,font=_font(60,True),fill="white",stroke_width=2,stroke_fill="#07111f"); y+=80
