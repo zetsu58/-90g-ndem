@@ -143,7 +143,10 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     except Exception as exc:
         offline_voice = "tr" if language == "tr" else "en-us"; print(f"ViralFutbol Edge TTS unavailable, using offline voice: {exc}", flush=True); subprocess.run(["espeak-ng", "-v", offline_voice, "-s", "175", "-w", str(audio_path), narration], check=True, timeout=60)
     audio_duration = _media_duration(audio_path)
-    timeline = timeline_plan(title, min(70.0, audio_duration + 0.35))
+    # A terse breaking story can be voiced in under twelve seconds. Hold the
+    # final editorial beat and music rather than discarding a fresh story.
+    target_duration = max(13.0, min(70.0, audio_duration + 0.35))
+    timeline = timeline_plan(title, target_duration)
     shot_paths = []
     motion_video = None
     if frames:
@@ -167,14 +170,14 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     except ValueError:
         music_volume = 0.20
     music_volume = max(0.05, min(0.35, music_volume))
-    mix = f"[1:a]volume=1.20,acompressor=threshold=0.14:ratio=2.7:attack=4:release=90,asplit=2[side][voice];[2:a]highpass=f=55,lowpass=f=9000,volume={music_volume}[bed];[bed][side]sidechaincompress=threshold=0.035:ratio=8:attack=12:release=280[ducked];[voice][ducked]amix=inputs=2:duration=first:dropout_transition=1:normalize=0,alimiter=limit=0.94[a]"
+    mix = f"[1:a]volume=1.20,acompressor=threshold=0.14:ratio=2.7:attack=4:release=90,apad,asplit=2[side][voice];[2:a]highpass=f=55,lowpass=f=9000,volume={music_volume}[bed];[bed][side]sidechaincompress=threshold=0.035:ratio=8:attack=12:release=280[ducked];[voice][ducked]amix=inputs=2:duration=first:dropout_transition=1:normalize=0,alimiter=limit=0.94[a]"
     music_value = os.getenv("SHORTS_MUSIC_FILE", "").strip()
     music_path = Path(music_value) if music_value else None
     if music_path and music_path.is_file():
         music_input = ["-stream_loop", "-1", "-i", str(music_path)]
     else:
         music_input = ["-stream_loop", "-1", "-i", str(instrumental(directory / "original-bed.wav"))]
-    command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), *music_input, "-vf", video_filter, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", str(final_path)]
+    command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), *music_input, "-vf", video_filter, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-t", f"{target_duration:.2f}", "-shortest", "-movflags", "+faststart", str(final_path)]
     try:
         timeout = max(60, int(os.getenv("LITE_VIDEO_TIMEOUT_SECONDS", "180")))
     except ValueError:
