@@ -26,6 +26,14 @@ def _shorts_min_score() -> int:
         return 42
 
 
+def _effective_trend_gate(clusters, minimum_score: int) -> int:
+    """Publish the best trustworthy fresh report when a quiet news cycle has no trend hit."""
+    eligible = [cluster for cluster in clusters if confidence_gate(cluster, publisher_family)[0]]
+    if not eligible:
+        return minimum_score
+    return min(minimum_score, max(evaluate_cluster(cluster).score.score for cluster in eligible))
+
+
 def build_v2_payload(cluster, settings, language: str, viral_score: int) -> dict:
     payload = build_payload(cluster, settings, language)
     if language != "tr":
@@ -67,6 +75,8 @@ def run_once_v2(settings) -> dict:
             # single reputable report is publishable. NEWS_MIN_SOURCES must
             # not discard it before that decision is made.
             clusters = verified_clusters(list(unique_recent.values()), replace(settings, min_sources=1))
+            effective_gate = _effective_trend_gate(clusters, minimum_score) if language == 'tr' else minimum_score
+            clusters.sort(key=lambda cluster: evaluate_cluster(cluster).score.score, reverse=True)
             diagnostics["clustered"] += len(clusters)
             ld = {"fetched": len(stories), "recent": len(recent), "verified": len(clusters), "viral_produce": 0, "viral_hold": 0, "viral_ignore": 0, "below_trend_gate": 0, "duplicates": 0, "previewed": 0, "submitted": 0, "generated_lite": 0, "submission_failed": 0, "deferred_capacity": 0, "deferred_retry": 0}
             diagnostics["fetched"] += len(stories); diagnostics["recent"] += len(recent); diagnostics["verified"] += len(clusters)
@@ -77,11 +87,13 @@ def run_once_v2(settings) -> dict:
                     continue
                 decision = evaluate_cluster(cluster)
                 score = decision.score.score
-                if language == "tr" and score < minimum_score:
+                if language == "tr" and score < effective_gate:
                     diagnostics["viral_hold"] += 1; ld["viral_hold"] += 1
                     diagnostics["below_trend_gate"] += 1; ld["below_trend_gate"] += 1
                     continue
                 diagnostics["viral_produce"] += 1; ld["viral_produce"] += 1
+                if language == 'tr' and score < minimum_score:
+                    diagnostics['trend_fallback'] = diagnostics.get('trend_fallback', 0) + 1
                 story_id = store.story_id(cluster, language)
                 if ledger and ledger.exists('viral_futbol',story_id):
                     diagnostics["duplicates"] += 1; ld["duplicates"] += 1; continue
