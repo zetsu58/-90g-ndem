@@ -75,6 +75,7 @@ def publish_pending():
         job=queue.claim(max_attempts=max(1,int(os.getenv('MEME_YOUTUBE_MAX_ATTEMPTS','4'))))
         if job is None: return {'uploaded':0,'ready':True,**queue.counts()}
         import json
+        video_id = None
         try:
             _validate_short(Path(job['video_path']))
         except (ValueError,OSError) as exc:
@@ -94,12 +95,21 @@ def publish_pending():
                     return {'uploaded':0,'ledger_blocked':True,**queue.counts()}
             video_id=upload(Path(job['video_path']),json.loads(job['metadata']))
             if ledger:
-                ledger.published('bamloop',job['content_id'],video_id)
+                try: ledger.published('bamloop',job['content_id'],video_id)
+                except LedgerError:
+                    # A real YouTube ID is authoritative. The reservation still
+                    # blocks duplicate uploads after a restart.
+                    result_error = 'ledger_record_failed'
+                else: result_error = None
+            else: result_error = None
             queue.published(job['content_id'],video_id)
-            return {'uploaded':1,'video_id':video_id,**queue.counts()}
+            return {'uploaded':1,'video_id':video_id,'ledger_warning':result_error,**queue.counts()}
         except Exception as exc:
-            queue.failed(job['content_id'],type(exc).__name__)
-            return {'uploaded':0,'upload_failed':1,**queue.counts()}
+            error_type=type(exc).__name__
+            status=getattr(getattr(exc,'resp',None),'status',None)
+            queue.failed(job['content_id'],error_type)
+            return {'uploaded':0,'upload_failed':1,'upload_error_type':error_type,
+                    'upload_http_status':status if isinstance(status,int) else None,**queue.counts()}
 
 
 def cycle():
