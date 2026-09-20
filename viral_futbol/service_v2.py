@@ -16,6 +16,7 @@ from .youtube_publisher import remember_manifest
 from .content_strategy import build_content_strategy
 from .source_intelligence import confidence_gate
 from .service import publisher_family
+from production.github_ledger import GitHubLedger, required as ledger_required, ready as ledger_ready
 
 
 def _shorts_min_score() -> int:
@@ -50,6 +51,9 @@ def build_v2_payload(cluster, settings, language: str, viral_score: int) -> dict
 
 def run_once_v2(settings) -> dict:
     minimum_score = _shorts_min_score()
+    if ledger_required() and not ledger_ready():
+        return {"ledger_blocked": True, "reason": "github_ledger_token_missing", "fetched": 0, "selected": []}
+    ledger = GitHubLedger() if ledger_required() else None
     with Store(settings.db_path) as store:
         reconciliation = {"completed": 0, "failed": 0, "processing": 0, "unreachable": 0} if settings.dry_run else reconcile_jobs(store, settings)
         diagnostics = {"fetched": 0, "recent": 0, "clustered": 0, "verified": 0, "rejected_source": 0, "rejected_conflict": 0, "queued": 0, "rendered": 0, "quality_blocked": 0, "uploaded": 0, "upload_failed": 0, "viral_produce": 0, "viral_hold": 0, "viral_ignore": 0, "below_trend_gate": 0, "duplicates": 0, "previewed": 0, "submitted": 0, "generated_lite": 0, "submission_failed": 0, "deferred_capacity": 0, "deferred_retry": 0, "dry_run": settings.dry_run, "trend_min_score": minimum_score, "languages": {}, "selected": []}
@@ -79,6 +83,8 @@ def run_once_v2(settings) -> dict:
                     continue
                 diagnostics["viral_produce"] += 1; ld["viral_produce"] += 1
                 story_id = store.story_id(cluster, language)
+                if ledger and ledger.exists('viral_futbol',story_id):
+                    diagnostics["duplicates"] += 1; ld["duplicates"] += 1; continue
                 strategy = build_content_strategy(settings.db_path, cluster[0].title) if language == "tr" else None
                 payload = build_v2_payload(cluster, settings, language, score)
                 if strategy and strategy.confidence in {"medium", "high"}:

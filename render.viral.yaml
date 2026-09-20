@@ -12,6 +12,10 @@ services:
         value: storage/videos
       - key: PUBLISH_DIRECT_ENABLED
         value: "true"
+      - key: PUBLISH_LEDGER_REQUIRED
+        value: "true"
+      - key: GITHUB_LEDGER_TOKEN
+        sync: false
       - key: VIDEO_ENGINE
         value: lite
       - key: NEWS_AUTOSTART_WORKER

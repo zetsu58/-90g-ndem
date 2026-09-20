@@ -111,6 +111,11 @@ class PublishQueue:
         with self.db:
             self.db.execute("UPDATE publish_queue SET upload_state='failed',last_error=?,next_retry_at=? WHERE channel=? AND content_id=? AND upload_state='uploading'", (str(error)[:300],now+delay,self.channel,content_id))
 
+    def defer(self, content_id, retry_at):
+        """A scheduled slot does not consume an upload attempt."""
+        with self.db:
+            self.db.execute("UPDATE publish_queue SET upload_state='queued',attempts=MAX(0,attempts-1),next_retry_at=? WHERE channel=? AND content_id=? AND upload_state='uploading'",(retry_at,self.channel,content_id))
+
     def reject(self, content_id, error):
         with self.db:
             self.db.execute("UPDATE publish_queue SET upload_state='quality_blocked',last_error=? WHERE channel=? AND content_id=?",(str(error)[:300],self.channel,content_id))

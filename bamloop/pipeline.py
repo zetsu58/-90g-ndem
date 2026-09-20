@@ -5,6 +5,7 @@ import os
 import time
 from pathlib import Path
 from production.queue import PublishQueue, publishing_storage_ready
+from production.github_ledger import GitHubLedger, required as ledger_required, ready as ledger_ready, LedgerError, LedgerCapacity
 from viral_futbol.youtube_publisher import _validate_short
 from .engine import build_video, choose_idea
 from .story import create_story_video
@@ -29,6 +30,7 @@ def select_type(recent):
 
 def prepare(*, source_url=None, voice_fixture=None):
     with PublishQueue(db_path(),'bamloop') as queue:
+        ledger=GitHubLedger() if ledger_required() else None
         recent=queue.recent(30)
         kind=select_type(recent)
         # Meme clips require a licensed source. Keep producing original stories
@@ -37,17 +39,23 @@ def prepare(*, source_url=None, voice_fixture=None):
             kind = 'ai_story'
         if kind=='meme':
             idea=choose_idea(str(time.time_ns()),{row['idea'] for row in recent[:16]})
-            video, metadata=build_video(idea,os.getenv('MEME_OUTPUT_DIR','storage/bamloop'),source_url)
             label=idea.title
             digest=hashlib.sha256((idea.title+'|'+(source_url or '')).encode()).hexdigest()
+            if ledger and ledger.exists('bamloop',digest[:24]):
+                raise LedgerError('Meme concept already recorded')
+            video, metadata=build_video(idea,os.getenv('MEME_OUTPUT_DIR','storage/bamloop'),source_url)
             provider='pexels' if source_url is None else 'local'
         else:
             seed=str(time.time_ns())
             # Each premise may appear again only after the short history moves on.
             for _ in range(25):
                 from .story import LocalStoryProvider
-                if LocalStoryProvider().create(seed).idea not in {r['idea'] for r in recent[:12]}: break
+                candidate=LocalStoryProvider().create(seed).idea
+                candidate_id=hashlib.sha256(candidate.encode()).hexdigest()[:24]
+                if candidate not in {r['idea'] for r in recent[:12]} and not (ledger and ledger.exists('bamloop',candidate_id)): break
                 seed=str(int(seed)+1)
+            else:
+                raise LedgerError('No unused AI story concept available')
             video,metadata,story,provider,_=create_story_video(seed,os.getenv('MEME_OUTPUT_DIR','storage/bamloop'),voice_fixture=voice_fixture)
             label=story.idea
             digest=hashlib.sha256(label.encode()).hexdigest()
@@ -60,8 +68,10 @@ def prepare(*, source_url=None, voice_fixture=None):
 def publish_pending():
     with PublishQueue(db_path(),'bamloop') as queue:
         if not credentials_ready(): return {'uploaded':0,'ready':False,**queue.counts()}
-        if not publishing_storage_ready(db_path()):
-            return {'uploaded':0,'ready':False,'persistence_blocked':True,**queue.counts()}
+        if not publishing_storage_ready(db_path()) or (ledger_required() and not ledger_ready()):
+            return {'uploaded':0,'ready':False,'persistence_blocked':not publishing_storage_ready(db_path()),
+                    'ledger_blocked':ledger_required() and not ledger_ready(),**queue.counts()}
+        ledger=GitHubLedger() if ledger_required() else None
         job=queue.claim(max_attempts=max(1,int(os.getenv('MEME_YOUTUBE_MAX_ATTEMPTS','4'))))
         if job is None: return {'uploaded':0,'ready':True,**queue.counts()}
         import json
@@ -71,7 +81,20 @@ def publish_pending():
             queue.reject(job['content_id'],str(exc))
             return {'uploaded':0,'quality_blocked':1,**queue.counts()}
         try:
+            if ledger:
+                try:
+                    if not ledger.reserve('bamloop',job['content_id']):
+                        queue.reject(job['content_id'],'Already recorded in publication ledger')
+                        return {'uploaded':0,'duplicate':1,**queue.counts()}
+                except LedgerCapacity as exc:
+                    queue.defer(job['content_id'],exc.retry_at)
+                    return {'uploaded':0,'scheduled':True,**queue.counts()}
+                except LedgerError:
+                    queue.failed(job['content_id'],'ledger_unavailable_or_limit')
+                    return {'uploaded':0,'ledger_blocked':True,**queue.counts()}
             video_id=upload(Path(job['video_path']),json.loads(job['metadata']))
+            if ledger:
+                ledger.published('bamloop',job['content_id'],video_id)
             queue.published(job['content_id'],video_id)
             return {'uploaded':1,'video_id':video_id,**queue.counts()}
         except Exception as exc:
