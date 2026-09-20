@@ -31,7 +31,8 @@ class ShotRendererTests(unittest.TestCase):
             ], capture_output=True, text=True, check=True, timeout=10)
             metadata = json.loads(probe.stdout)
             self.assertGreater(float(metadata['format']['duration']), 1.5)
-            self.assertEqual((metadata['streams'][0]['width'], metadata['streams'][0]['height']), (1080, 1920))
+            # The final composer upscales the compact clips to 1080x1920.
+            self.assertEqual((metadata['streams'][0]['width'], metadata['streams'][0]['height']), (540, 960))
 
 
 if __name__ == '__main__':
