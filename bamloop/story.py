@@ -154,7 +154,7 @@ def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None
             overlay.save(prop)
             subprocess.run(['ffmpeg','-y','-loglevel','error','-filter_complex_threads','1','-loop','1','-framerate','24','-i',str(frame),
                 '-loop','1','-framerate','24','-i',str(prop),'-t',str(scene_seconds),
-                '-filter_complex',f"[0:v]scale=1240:2205,crop=1080:1920:x='80+55*sin(t*0.55)':y='140+55*cos(t*0.47)',eq=contrast=1.05:saturation=1.08[bg];[1:v]scale=210:210,format=rgba[prop];[bg][prop]overlay=x='250+230*sin(t*0.9)':y='1160+150*cos(t*0.72)':eval=frame,fade=t=in:st=0:d=0.18,fade=t=out:st={scene_seconds-0.22:.2f}:d=0.22,fps=30,format=yuv420p[v]",
+                '-filter_complex',f"[0:v]scale=620:1103,crop=540:960:x='40+27*sin(t*0.55)':y='70+27*cos(t*0.47)',eq=contrast=1.05:saturation=1.08[bg];[1:v]scale=105:105,format=rgba[prop];[bg][prop]overlay=x='125+115*sin(t*0.9)':y='580+75*cos(t*0.72)':eval=frame,fade=t=in:st=0:d=0.18,fade=t=out:st={scene_seconds-0.22:.2f}:d=0.22,fps=30,format=yuv420p[v]",
                 '-map','[v]','-c:v','libx264','-preset','ultrafast','-crf','27','-threads','1',str(clip)],check=True,timeout=180)
             clips.append(clip)
         concat=folder/'list.txt'; concat.write_text(''.join(f"file '{clip}'\n" for clip in clips))
@@ -172,8 +172,10 @@ def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None
             subprocess.run([binary,'-v','tr','-s','160','-w',str(narration),speech],check=True,timeout=90)
         music=os.getenv('BAMLOOP_MUSIC_FILE','')
         bed=['-stream_loop','-1','-i',music] if music and Path(music).is_file() else ['-stream_loop','-1','-i',str(instrumental(output/'original-bed.wav'))]
-        subprocess.run(['ffmpeg','-y','-loglevel','error','-filter_complex_threads','1','-i',str(visuals),'-i',str(narration),*bed,
+        subprocess.run(['ffmpeg','-y','-loglevel','error','-filter_complex_threads','1','-filter_threads','1','-i',str(visuals),'-i',str(narration),*bed,
             '-filter_complex','[1:a]apad,volume=1.3,asplit=2[side][main];[2:a]volume=0.18[b];[b][side]sidechaincompress=threshold=0.03:ratio=8:detection=rms[d];[main][d]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[a]',
-            '-map','0:v','-map','[a]','-t','36','-c:v','copy','-c:a','aac','-b:a','128k','-movflags','+faststart',str(final)],check=True,timeout=180)
+            '-map','0:v','-map','[a]','-t','36','-vf','scale=1080:1920:flags=bilinear,format=yuv420p',
+            '-c:v','libx264','-preset','ultrafast','-crf','23','-threads','1',
+            '-c:a','aac','-b:a','128k','-movflags','+faststart',str(final)],check=True,timeout=180)
     _validate_short(final)
     return final, {'title':story.idea[:90]+' #Shorts','description':'Özgün kısa kurgu. #Shorts #hikaye','tags':['hikaye','shorts','kurgu']}, story, provider, cost
