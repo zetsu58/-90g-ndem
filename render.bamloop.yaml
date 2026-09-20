@@ -5,19 +5,17 @@ services:
     dockerfilePath: ./Dockerfile.bamloop
     healthCheckPath: /health
     autoDeploy: true
-    disk:
-      name: bamloop-state
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: MEME_OUTPUT_DIR
-        value: /data/bamloop
+        value: storage/bamloop
+      - key: PUBLISH_DIRECT_ENABLED
+        value: "true"
       - key: MEME_INTERVAL_SECONDS
         value: "14400"
       - key: MEME_STARTUP_DELAY_SECONDS
         value: "20"
       - key: MEME_DB_PATH
-        value: /data/bamloop/bamloop.sqlite3
+        value: storage/bamloop/bamloop.sqlite3
       - key: MAX_SHORTS_PER_DAY
         value: "5"
       - key: MIN_HOURS_BETWEEN_SHORTS
@@ -42,4 +40,3 @@ services:
         sync: false
       - key: MEME_YOUTUBE_REFRESH_TOKEN
         sync: false
-
