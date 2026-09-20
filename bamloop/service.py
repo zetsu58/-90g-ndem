@@ -7,7 +7,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from bamloop.pipeline import cycle, db_path
-from production.queue import PublishQueue, persistent_render_path
+from production.queue import PublishQueue, persistent_render_path, publishing_storage_ready, direct_publish_enabled
 from bamloop.youtube import credentials_ready
 
 STATE: dict = {
@@ -85,8 +85,9 @@ class Handler(BaseHTTPRequestHandler):
                     snapshot['youtube_enabled']=os.getenv('MEME_YOUTUBE_ENABLED','false').casefold() in {'1','true','yes','on'}
                     snapshot['youtube_privacy_status']=os.getenv('MEME_YOUTUBE_PRIVACY_STATUS','private')
                     snapshot['db_persistence_ready']=persistent_render_path(db_path())
-                    snapshot['publishing_ready']=credentials_ready() and snapshot['db_persistence_ready']
-                    snapshot['persistence_blocked']=snapshot['youtube_enabled'] and not snapshot['db_persistence_ready']
+                    snapshot['direct_publish_enabled']=direct_publish_enabled()
+                    snapshot['publishing_ready']=credentials_ready() and publishing_storage_ready(db_path())
+                    snapshot['persistence_blocked']=snapshot['youtube_enabled'] and not publishing_storage_ready(db_path())
             except Exception:
                 snapshot['db_persistence_ready']=False
                 snapshot['publishing_ready']=False
@@ -101,7 +102,7 @@ class Handler(BaseHTTPRequestHandler):
 def _publish_ready() -> bool:
     """Worker health is separate from durable YouTube publishing readiness."""
     enabled = os.getenv('MEME_YOUTUBE_ENABLED','false').casefold() in {'1','true','yes','on'}
-    return not enabled or persistent_render_path(db_path())
+    return not enabled or publishing_storage_ready(db_path())
 
 
 def main() -> None:
