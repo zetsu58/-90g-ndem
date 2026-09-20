@@ -139,11 +139,11 @@ def build_video(
     music = os.getenv('BAMLOOP_MUSIC_FILE','')
     music_path = Path(music) if music and Path(music).is_file() else instrumental(directory/'original-bed.wav')
     command = [
-        "ffmpeg", "-y", "-loglevel", "error", "-i", str(source),
+        "ffmpeg", "-y", "-loglevel", "error", "-filter_complex_threads", "1", "-i", str(source),
         "-stream_loop", "-1", "-i", str(music_path),
         "-filter_complex", f"{video_filter};[1:a]volume=0.35,afade=t=in:st=0:d=0.10,afade=t=out:st=11.75:d=0.25,alimiter=limit=0.90[a]",
         "-map", "[v]", "-map", "[a]", "-t", "12",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "1",
         "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(output),
     ]
     try:
