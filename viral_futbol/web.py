@@ -51,6 +51,7 @@ def public_status() -> dict:
     settings = Settings()
     youtube = YouTubeConfig.from_env()
     from production.queue import PublishQueue, persistent_render_path, publishing_storage_ready, direct_publish_enabled
+    from production.github_ledger import required as ledger_required, ready as ledger_ready
     try:
         with PublishQueue(settings.db_path, 'viral_futbol') as queue:
             counts=queue.db.execute("SELECT upload_state, COUNT(*) FROM publish_queue WHERE channel='viral_futbol' GROUP BY upload_state").fetchall()
@@ -77,8 +78,10 @@ def public_status() -> dict:
             "youtube_credentials_ready": youtube.ready,
             "youtube_privacy_status": youtube.privacy_status,
             "direct_publish_enabled": direct_publish_enabled(),
+            "github_ledger_required": ledger_required(),
+            "github_ledger_ready": ledger_ready() if ledger_required() else False,
             "autostart_worker": os.getenv("NEWS_AUTOSTART_WORKER", "true").casefold() in {"1", "true", "yes", "on"},
-            "release_ready": (not settings.dry_run) and youtube.ready and publishing_storage_ready(settings.db_path),
+            "release_ready": (not settings.dry_run) and youtube.ready and publishing_storage_ready(settings.db_path) and (not ledger_required() or ledger_ready()),
             "db_persistent_path": settings.db_path.startswith("/data/"),
         },
     }
@@ -110,7 +113,8 @@ class Handler(BaseHTTPRequestHandler):
             # Keep the process health separate from its ability to publish safely.
             # A Free Render filesystem can disappear on restart.
             from production.queue import publishing_storage_ready
-            ready = os.getenv('YOUTUBE_ENABLED','false').casefold() not in {'1','true','yes','on'} or publishing_storage_ready(Settings().db_path)
+            from production.github_ledger import required as ledger_required, ready as ledger_ready
+            ready = os.getenv('YOUTUBE_ENABLED','false').casefold() not in {'1','true','yes','on'} or (publishing_storage_ready(Settings().db_path) and (not ledger_required() or ledger_ready()))
             self._reply(200 if ready else 503, {'status':'ready' if ready else 'persistence_required','version':VERSION})
             return
         if path == '/status':
@@ -134,7 +138,8 @@ class Handler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path.rstrip('/') or '/'
         if path == '/ready':
             from production.queue import publishing_storage_ready
-            ready = os.getenv('YOUTUBE_ENABLED','false').casefold() not in {'1','true','yes','on'} or publishing_storage_ready(Settings().db_path)
+            from production.github_ledger import required as ledger_required, ready as ledger_ready
+            ready = os.getenv('YOUTUBE_ENABLED','false').casefold() not in {'1','true','yes','on'} or (publishing_storage_ready(Settings().db_path) and (not ledger_required() or ledger_ready()))
             self.send_response(200 if ready else 503)
         else:
             self.send_response(200 if path in {'/','/health','/healthz','/status'} else 404)
