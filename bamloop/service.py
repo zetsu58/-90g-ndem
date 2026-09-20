@@ -6,7 +6,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from bamloop.pipeline import cycle, db_path
+from bamloop.pipeline import cycle, db_path, publish_pending
 from production.queue import PublishQueue, persistent_render_path, publishing_storage_ready, direct_publish_enabled
 from production.github_ledger import required as ledger_required, ready as ledger_ready
 from bamloop.youtube import credentials_ready
@@ -46,8 +46,27 @@ def worker() -> None:
                 upload_count=STATE['upload_count'] + sum(int((result.get(k) or {}).get('uploaded',0)) for k in ('publish','publish_after_prepare')))
         except Exception as exc:
             _set(status="error", running=False, failure_count=STATE["failure_count"]+1, last_error=f"{type(exc).__name__}"[:100])
-        elapsed = int(time.time()) - started
-        time.sleep(max(60, interval - elapsed))
+        # Rendering remains infrequent, but release completed videos promptly
+        # when their independent channel slot becomes available.
+        deadline = started + interval
+        poll_seconds = max(30, int(os.getenv('MEME_PUBLISH_POLL_SECONDS', '120')))
+        while remaining := deadline - time.time():
+            if remaining <= 0:
+                break
+            time.sleep(min(poll_seconds, remaining))
+            if time.time() >= deadline:
+                break
+            try:
+                publication = publish_pending()
+                if publication.get('uploaded') or publication.get('upload_failed'):
+                    with LOCK:
+                        snapshot = dict(STATE.get('last_result') or {})
+                        snapshot['scheduled_publish'] = publication
+                        STATE['last_result'] = snapshot
+                        STATE['upload_count'] += int(publication.get('uploaded', 0))
+                        STATE['failure_count'] += int(publication.get('upload_failed', 0))
+            except Exception as exc:
+                _set(last_error=type(exc).__name__, failure_count=STATE['failure_count'] + 1)
 
 
 class Handler(BaseHTTPRequestHandler):
