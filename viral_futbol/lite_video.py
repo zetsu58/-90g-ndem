@@ -81,9 +81,13 @@ def _card(path: Path, title: str, narration: str, sources: list[str], variant: i
     draw.ellipse((470, 760, 930, 1320), fill="#112d55"); accent = "#ff2438"; draw.rounded_rectangle((38, 38, 682, 140), radius=24, fill="#050505", outline=accent, width=3)
     logo_path = Path(__file__).resolve().parents[1] / "assets" / "90gundem-logo-v2.png"
     if logo_path.exists():
-        with Image.open(logo_path) as logo_opened:
-            logo = logo_opened.convert("RGBA"); logo.thumbnail((88, 88), Image.Resampling.LANCZOS)
-        image.paste(logo, (55, 45), logo); draw = ImageDraw.Draw(image)
+        try:
+            with Image.open(logo_path) as logo_opened:
+                logo = logo_opened.convert("RGBA"); logo.thumbnail((88, 88), Image.Resampling.LANCZOS)
+            image.paste(logo, (55, 45), logo); draw = ImageDraw.Draw(image)
+        except (OSError, ValueError):
+            # Damaged optional branding must not prevent timely news production.
+            print("ViralFutbol optional logo unavailable", flush=True)
     draw.text((160, 72), "FUTBOL HABERİ  •  90+ GÜNDEM", font=_font(23, True), fill="white")
     y = 190; title_font = _font(42, True)
     for line in _wrapped(title, 24)[:6]: draw.text((52, y), line, font=title_font, fill="white"); y += 61
