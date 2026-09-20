@@ -33,6 +33,10 @@ class YouTubeConfig:
 
 class PublicationStore:
     def __init__(self,db_path:str):
+        # News scanning can stop before Store opens; initialize jobs independently.
+        from .service import Store
+        with Store(db_path):
+            pass
         Path(db_path).parent.mkdir(parents=True,exist_ok=True); self.db=sqlite3.connect(db_path,timeout=30); self.db.row_factory=sqlite3.Row; self.db.execute("PRAGMA busy_timeout = 30000")
         self.db.execute("CREATE TABLE IF NOT EXISTS youtube_manifests (story_id TEXT PRIMARY KEY,title TEXT NOT NULL,language TEXT NOT NULL,sources_json TEXT NOT NULL,created_at REAL NOT NULL)")
         self.db.execute("CREATE TABLE IF NOT EXISTS youtube_publications (story_id TEXT PRIMARY KEY,status TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,video_id TEXT,last_error TEXT,updated_at REAL NOT NULL,next_retry_at REAL NOT NULL DEFAULT 0)"); self.db.commit()
