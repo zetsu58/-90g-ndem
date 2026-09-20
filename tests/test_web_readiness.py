@@ -12,6 +12,20 @@ from viral_futbol.web import Handler
 
 
 class ReadinessTests(unittest.TestCase):
+    def test_direct_mode_is_ready_without_disk(self):
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        try:
+            with patch.dict(os.environ, {'YOUTUBE_ENABLED':'true', 'PUBLISH_DIRECT_ENABLED':'true',
+                                          'NEWS_DB_PATH':'storage/test.sqlite3'}):
+                base=f'http://127.0.0.1:{server.server_port}'
+                for method in ('GET','HEAD'):
+                    with urlopen(Request(base+'/ready',method=method)) as response:
+                        self.assertEqual(response.status,200)
+        finally:
+            server.shutdown(); server.server_close(); worker.join()
+
     def test_missing_persistent_disk_is_not_publish_ready(self):
         server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
         worker = threading.Thread(target=server.serve_forever, daemon=True)

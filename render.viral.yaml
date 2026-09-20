@@ -5,15 +5,13 @@ services:
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     autoDeploy: true
-    disk:
-      name: viral-futbol-state
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: NEWS_DB_PATH
-        value: /data/viral_futbol.sqlite3
+        value: storage/viral_futbol.sqlite3
       - key: LITE_VIDEO_DIR
-        value: /data/viral-videos
+        value: storage/videos
+      - key: PUBLISH_DIRECT_ENABLED
+        value: "true"
       - key: VIDEO_ENGINE
         value: lite
       - key: NEWS_AUTOSTART_WORKER
@@ -22,6 +20,12 @@ services:
         value: "120"
       - key: NEWS_DRY_RUN
         value: "false"
+      - key: NEWS_MAX_AGE_MINUTES
+        value: "180"
+      - key: SHORTS_MAX_AGE_MINUTES
+        value: "180"
+      - key: VIRAL_TREND_MIN_SCORE
+        value: "25"
       - key: MAX_SHORTS_PER_DAY
         value: "5"
       - key: MIN_HOURS_BETWEEN_SHORTS

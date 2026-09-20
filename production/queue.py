@@ -69,7 +69,7 @@ class PublishQueue:
         earliest = max(now, max(occupied, default=0)+spacing)
         if len(occupied) >= max_daily: earliest = max(earliest, end)
         # Configurable slots, default spread through the local daytime.
-        if os.getenv('SMART_PUBLISH_SCHEDULING','true').lower() in {'1','true','yes'}:
+        if not direct_publish_enabled() and os.getenv('SMART_PUBLISH_SCHEDULING','true').lower() in {'1','true','yes'}:
             slots = [int(x) for x in os.getenv('PUBLISH_HOURS','9,12,15,18,21').split(',') if x.strip().isdigit() and 0 <= int(x) <= 23]
             if slots:
                 zone = ZoneInfo(os.getenv('CHANNEL_TIMEZONE','Europe/Istanbul'))
@@ -119,3 +119,12 @@ class PublishQueue:
 def persistent_render_path(path: str) -> bool:
     """Free Render containers may contain /data without a mounted disk."""
     return path.startswith('/data/') and os.path.ismount('/data')
+
+
+def direct_publish_enabled() -> bool:
+    """Explicit opt-in to same-cycle publishing on ephemeral hosting."""
+    return os.getenv('PUBLISH_DIRECT_ENABLED', 'false').casefold() in {'1', 'true', 'yes', 'on'}
+
+
+def publishing_storage_ready(path: str) -> bool:
+    return persistent_render_path(path) or direct_publish_enabled()

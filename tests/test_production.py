@@ -66,6 +66,7 @@ class ProductionTests(unittest.TestCase):
         dt=datetime.now(ZoneInfo('UTC'))
         def story(title,publisher): return Story(title,'https://news.google.com/x',publisher,dt)
         self.assertTrue(confidence_gate([story('Transfer açıklandı','Reuters')],publisher_family)[0])
+        self.assertEqual(confidence_gate([story('Oyuncuyla görüşme iddiası','Yerel Gazete')],publisher_family)[1], 'single_report')
         self.assertFalse(confidence_gate([story('Transfer açıklandı','X.com')],publisher_family)[0])
         self.assertEqual(confidence_gate([story('Oyuncu kaldı','Reuters'),story('Oyuncu ayrıldı','BBC')],publisher_family)[1],'conflict')
 
@@ -104,6 +105,57 @@ class ProductionTests(unittest.TestCase):
             result = prepare()
         self.assertTrue(result['queued'])
         self.assertEqual(result['content_type'], 'ai_story')
+
+    def test_direct_mode_ignores_hour_slots_but_preserves_limits(self):
+        from production.queue import publishing_storage_ready
+        with patch.dict(os.environ, {'PUBLISH_DIRECT_ENABLED':'true', 'SMART_PUBLISH_SCHEDULING':'true',
+                                     'PUBLISH_HOURS':'23', 'MIN_HOURS_BETWEEN_SHORTS':'3'}):
+            self.assertTrue(publishing_storage_ready(self.db))
+            now=datetime(2026,9,19,6,tzinfo=ZoneInfo('Europe/Istanbul')).timestamp()
+            with PublishQueue(self.db,'viral_futbol') as queue:
+                self.enqueue(queue, 'direct')
+                row=queue.claim(now)
+                self.assertIsNotNone(row)
+                queue.published(row['content_id'],'real-video-id',now)
+                self.enqueue(queue, 'next')
+                self.assertIsNone(queue.claim(now+60))
+                self.assertIsNotNone(queue.claim(now+3*3600))
+
+    def test_direct_bamloop_publishes_only_real_video_id(self):
+        from bamloop.pipeline import publish_pending
+        env={'MEME_DB_PATH':self.db,'PUBLISH_DIRECT_ENABLED':'true',
+             'SMART_PUBLISH_SCHEDULING':'false','MIN_HOURS_BETWEEN_SHORTS':'0'}
+        with patch.dict(os.environ,env), PublishQueue(self.db,'bamloop') as queue:
+            self.enqueue(queue,'bam-direct')
+            with patch('bamloop.pipeline.credentials_ready',return_value=True), \
+                 patch('bamloop.pipeline._validate_short'), \
+                 patch('bamloop.pipeline.upload',return_value='real-bam-id'):
+                self.assertEqual(publish_pending()['uploaded'],1)
+            row=queue.db.execute("SELECT youtube_video_id,upload_state FROM publish_queue WHERE content_id='bam-direct'").fetchone()
+            self.assertEqual(tuple(row),('real-bam-id','published'))
+
+    def test_direct_viral_publishes_completed_render(self):
+        from viral_futbol.config import Settings
+        from viral_futbol.service import Store
+        from viral_futbol.youtube_publisher import PublicationStore, publish_ready
+        env={'NEWS_DB_PATH':self.db,'PUBLISH_DIRECT_ENABLED':'true',
+             'SMART_PUBLISH_SCHEDULING':'false','MIN_HOURS_BETWEEN_SHORTS':'0',
+             'YOUTUBE_ENABLED':'true','YOUTUBE_CLIENT_ID':'fixture',
+             'YOUTUBE_CLIENT_SECRET':'fixture','YOUTUBE_REFRESH_TOKEN':'fixture'}
+        with patch.dict(os.environ,env):
+            with Store(self.db) as store:
+                self.assertTrue(store.reserve('viral-direct','tr',max_attempts=3,stale_seconds=60))
+                store.mark_complete('viral-direct','file:///unused.mp4')
+            with PublicationStore(self.db) as manifests:
+                manifests.remember('viral-direct','Kulüp oyuncuyu duyurdu','tr',['Kulüp'])
+            with patch('viral_futbol.youtube_publisher._download'), \
+                 patch('viral_futbol.youtube_publisher._validate_short',return_value={'duration':30}), \
+                 patch('viral_futbol.youtube_publisher._upload',return_value='real-viral-id'):
+                result=publish_ready(Settings(db_path=self.db),limit=1)
+            self.assertEqual(result['published'],1)
+            with PublishQueue(self.db,'viral_futbol') as queue:
+                row=queue.db.execute("SELECT youtube_video_id FROM publish_queue WHERE content_id='viral-direct'").fetchone()
+                self.assertEqual(row[0],'real-viral-id')
 
 
 if __name__ == '__main__': unittest.main()

@@ -12,6 +12,20 @@ from bamloop.service import Handler
 
 
 class ReadinessTests(unittest.TestCase):
+    def test_direct_mode_ready_without_disk(self):
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        try:
+            with patch.dict(os.environ, {'MEME_YOUTUBE_ENABLED':'true', 'PUBLISH_DIRECT_ENABLED':'true',
+                                          'MEME_DB_PATH':'storage/test-bamloop.sqlite3'}):
+                base=f'http://127.0.0.1:{server.server_port}'
+                for method in ('GET','HEAD'):
+                    with urlopen(Request(base+'/ready',method=method)) as response:
+                        self.assertEqual(response.status,200)
+        finally:
+            server.shutdown(); server.server_close(); worker.join()
+
     def test_youtube_enabled_without_disk_has_unready_get_and_head(self):
         server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
         worker = threading.Thread(target=server.serve_forever, daemon=True)

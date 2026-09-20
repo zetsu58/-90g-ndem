@@ -46,7 +46,7 @@ def build_lite_narration(
     detail = ". ".join(clean_facts[:3])
     if language == "en":
         verified = f" {detail}." if detail else ""
-        return f"Football update: {clean}.{verified} Follow 90 Plus Gundem for the next verified update."
+        return f"Football update: {clean}.{verified} Follow 90 Plus Gundem for the next update."
     # Put the news in the first breath. Never pad sparse reports with invented
     # consequences or claims of an official announcement.
     lead = clean if clean.endswith(("?", "!")) else f"{clean}."
