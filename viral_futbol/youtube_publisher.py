@@ -130,6 +130,7 @@ def _upload(path:Path,job:dict,config:YouTubeConfig)->str:
 def publish_ready(settings,limit:int=2)->dict:
     """Queue completed renders and publish only in this channel's valid slot."""
     from production.queue import PublishQueue, publishing_storage_ready
+    from production.github_ledger import GitHubLedger, required as ledger_required, ready as ledger_ready, LedgerError, LedgerCapacity
     config=YouTubeConfig.from_env()
     result={"enabled":config.enabled,"ready":config.ready,"published":0,"failed":0,"quality_blocked":0,"skipped":0,"validated":[]}
     with PublicationStore(settings.db_path) as manifests, PublishQueue(settings.db_path,'viral_futbol') as queue:
@@ -140,10 +141,12 @@ def publish_ready(settings,limit:int=2)->dict:
         result.update(queue.counts())
         result['next_publish_slot']=queue.next_slot()
         if not config.ready: return result
-        if not publishing_storage_ready(str(settings.db_path)):
+        if not publishing_storage_ready(str(settings.db_path)) or (ledger_required() and not ledger_ready()):
             result['ready']=False
-            result['persistence_blocked']=True
+            result['persistence_blocked']=not publishing_storage_ready(str(settings.db_path))
+            result['ledger_blocked']=ledger_required() and not ledger_ready()
             return result
+        ledger = GitHubLedger() if ledger_required() else None
         for _ in range(max(0,limit)):
             job=queue.claim(max_attempts=config.max_attempts)
             if job is None: break
@@ -156,7 +159,23 @@ def publish_ready(settings,limit:int=2)->dict:
                     except ValueError as exc:
                         result['quality_blocked']+=1; queue.reject(story_id,exc); continue
                     result['validated'].append({'story_id':story_id,**quality})
+                    if ledger:
+                        try:
+                            if not ledger.reserve('viral_futbol',story_id):
+                                queue.reject(story_id,'Already recorded in publication ledger')
+                                result['skipped']+=1
+                                continue
+                        except LedgerCapacity as exc:
+                            queue.defer(story_id,exc.retry_at)
+                            result['skipped']+=1
+                            continue
+                        except LedgerError:
+                            queue.failed(story_id,'ledger_unavailable_or_limit')
+                            result['skipped']+=1
+                            continue
                     video_id=_upload(video_path,json.loads(job['metadata']),config)
+                if ledger:
+                    ledger.published('viral_futbol',story_id,video_id)
                 queue.published(story_id,video_id)
                 result['published']+=1
                 try:
