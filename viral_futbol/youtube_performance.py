@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from .performance_learning import PerformanceSample, PerformanceStore
 from .youtube_publisher import YouTubeConfig
+from .scene_performance import record_story_scene_snapshot
 
 
 def _youtube(config: YouTubeConfig):
@@ -99,7 +100,16 @@ def collect_youtube_performance(db_path: str, limit: int | None = None) -> dict:
                     comments=int(stats.get("commentCount") or 0),
                     age_hours=age_hours,
                 )
-                performance.record(sample)
+                score = performance.record(sample)
+                try:
+                    record_story_scene_snapshot(
+                        db_path, sample.story_id, age_hours=sample.age_hours,
+                        views=sample.views, likes=sample.likes, comments=sample.comments,
+                        performance_score=score,
+                    )
+                except Exception:
+                    # Advisory learning must never block primary analytics collection.
+                    pass
                 if published_at:
                     try:
                         published_epoch = published.timestamp()
