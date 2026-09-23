@@ -85,6 +85,17 @@ class LocalStoryProvider:
         return Story(f'{subject}: {hook} ({random.Random(seed + str(len(seed))).choice(("güneşli gün","akşamüstü","hafta sonu","sabah"))})', scenes)
 
 
+def motion_filter(movement: str, scene_seconds: int) -> str:
+    """Map BAMLOOP semantic movement names to bounded FFmpeg crop motion."""
+    presets = {
+        "push-in": "scale=660:1173,crop=540:960:x='60+10*t':y='95+16*t'",
+        "pull-out": "scale=660:1173,crop=540:960:x='120-10*t':y='180-16*t'",
+        "pan": "scale=660:1173,crop=540:960:x='30+45*t':y=106",
+        "parallax": "scale=660:1173,crop=540:960:x='60+24*sin(t*0.8)':y='106+18*cos(t*0.65)'",
+    }
+    return presets.get(movement, presets["parallax"])
+
+
 class LocalImageProvider:
     """Original procedural art; never fetches arbitrary unrelated stock."""
     def render(self, scene: Scene, destination: Path, index: int) -> None:
@@ -152,9 +163,10 @@ def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None
             marker.ellipse((12,12,166,166),fill=('#f8e362','#9fe8ec','#f693ac','#a9f2ae')[i],outline='white',width=8)
             marker.ellipse((62,55,81,74),fill='#101b2b');marker.ellipse((105,55,124,74),fill='#101b2b')
             overlay.save(prop)
+            movement = motion_filter(scene.movement, scene_seconds)
             subprocess.run(['ffmpeg','-y','-loglevel','error','-filter_complex_threads','1','-loop','1','-framerate','24','-i',str(frame),
                 '-loop','1','-framerate','24','-i',str(prop),'-t',str(scene_seconds),
-                '-filter_complex',f"[0:v]scale=620:1103,crop=540:960:x='40+27*sin(t*0.55)':y='70+27*cos(t*0.47)',eq=contrast=1.05:saturation=1.08[bg];[1:v]scale=105:105,format=rgba[prop];[bg][prop]overlay=x='125+115*sin(t*0.9)':y='580+75*cos(t*0.72)':eval=frame,fade=t=in:st=0:d=0.18,fade=t=out:st={scene_seconds-0.22:.2f}:d=0.22,fps=30,format=yuv420p[v]",
+                '-filter_complex',f"[0:v]{movement},eq=contrast=1.05:saturation=1.08[bg];[1:v]scale=105:105,format=rgba[prop];[bg][prop]overlay=x='125+115*sin(t*0.9)':y='580+75*cos(t*0.72)':eval=frame,fade=t=in:st=0:d=0.18,fade=t=out:st={scene_seconds-0.22:.2f}:d=0.22,fps=30,format=yuv420p[v]",
                 '-map','[v]','-c:v','libx264','-preset','ultrafast','-crf','27','-threads','1',str(clip)],check=True,timeout=180)
             clips.append(clip)
         concat=folder/'list.txt'; concat.write_text(''.join(f"file '{clip}'\n" for clip in clips))
