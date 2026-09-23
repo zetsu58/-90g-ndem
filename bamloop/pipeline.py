@@ -10,6 +10,7 @@ from viral_futbol.youtube_publisher import _validate_short
 from .engine import build_video, choose_idea
 from .story import create_story_video
 from .youtube import upload, credentials_ready
+from .learning import remember_story_scenes, learned_story_advice
 
 
 def db_path():
@@ -59,6 +60,12 @@ def prepare(*, source_url=None, voice_fixture=None):
             video,metadata,story,provider,_=create_story_video(seed,os.getenv('MEME_OUTPUT_DIR','storage/bamloop'),voice_fixture=voice_fixture)
             label=story.idea
             digest=hashlib.sha256(label.encode()).hexdigest()
+            content_id=digest[:24]
+            scenes=remember_story_scenes(db_path(),content_id,story)
+            advice=learned_story_advice(db_path())
+            metadata["scene_manifest"]={"count":len(scenes),"repairable":True}
+            if advice:
+                metadata["learned_scene_creative"]=advice
         _validate_short(video)
         content_id=digest[:24]
         queued=queue.enqueue(content_id,kind,label,digest,video,metadata,provider)
