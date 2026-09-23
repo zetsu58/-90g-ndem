@@ -18,6 +18,7 @@ from .source_intelligence import confidence_gate
 from .scene_manifest import SceneManifestStore
 from .scene_learning import recommended_scene_creative
 from .retention_optimizer import recommended_retention_creative
+from .creative_exploration import choose_creative
 from .service import publisher_family
 from production.github_ledger import GitHubLedger, required as ledger_required, ready as ledger_ready
 
@@ -102,17 +103,21 @@ def run_once_v2(settings) -> dict:
                     diagnostics["duplicates"] += 1; ld["duplicates"] += 1; continue
                 strategy = build_content_strategy(settings.db_path, cluster[0].title) if language == "tr" else None
                 scene_advice = recommended_scene_creative(settings.db_path) if language == "tr" else None
-    retention_advice = recommended_retention_creative(settings.db_path) if language == "tr" else None
+                retention_advice = recommended_retention_creative(settings.db_path) if language == "tr" else None
+                creative_choice = choose_creative(story_id, retention_advice.as_dict() if retention_advice else None)
                 payload = build_v2_payload(cluster, settings, language, score)
                 if strategy and strategy.confidence in {"medium", "high"}:
                     payload["custom_system_prompt"] += f" Öğrenilmiş açılış biçimi: {strategy.hook}. Bunu doğal uygula; doğrulanmış bilgilerin dışına çıkma."
                 if scene_advice:
                     payload["learned_scene_creative"] = scene_advice.as_dict()
+                if retention_advice:
+                    payload["measured_retention_creative"] = retention_advice.as_dict()
+                    payload["creative_experiment"] = creative_choice
                 selected = {"language": language, "title": cluster[0].title, "sources": sorted({s.publisher for s in cluster}), "viral_score": score, "viral_reasons": list(decision.score.reasons), "trend_gate": "accepted", "script_engine": "shorts-v2" if language == "tr" else "legacy-en", "video_subject": payload.get("video_subject", ""), "clip_duration": payload.get("video_clip_duration"), "subtitle_font_size": payload.get("font_size"), "strategy": strategy.as_dict() if strategy else None, "scene_advice": scene_advice.as_dict() if scene_advice else None}
                 remember_manifest(settings.db_path, story_id, cluster[0].title, language, sorted({s.publisher for s in cluster}))
                 if language == "tr":
                     with SceneManifestStore(settings.db_path) as scene_store:
-                        scenes = scene_store.plan(story_id, cluster[0].title, target_seconds=24.0)
+                        scenes = scene_store.plan(story_id, cluster[0].title, target_seconds=24.0, creative=creative_choice)
                     selected["scene_manifest"] = {"count": len(scenes), "repairable": True}
                 if settings.dry_run:
                     submit(payload, settings, idempotency_key=f"viral-futbol:{story_id}")
