@@ -11,6 +11,7 @@ from .engine import build_video, choose_idea
 from .story import create_story_video
 from .youtube import upload, credentials_ready
 from .learning import remember_story_scenes, learned_story_advice
+from .performance import collect as collect_performance
 
 
 def db_path():
@@ -120,7 +121,9 @@ def publish_pending():
 
 
 def cycle():
-    result={'publish':publish_pending()}
+    try: performance=collect_performance(db_path())
+    except Exception as exc: performance={'ready':False,'collected':0,'error':type(exc).__name__}
+    result={'performance':performance,'publish':publish_pending()}
     try: result['prepare']=prepare()
     except Exception as exc: result['prepare']={'error':type(exc).__name__}
     result['publish_after_prepare']=publish_pending()
