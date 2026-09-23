@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from .performance_learning import PerformanceSample, PerformanceStore
 from .youtube_publisher import YouTubeConfig
 from .scene_performance import record_story_scene_snapshot
+from .retention_collector import collect_video_retention
 
 
 def _youtube(config: YouTubeConfig):
@@ -118,6 +119,15 @@ def collect_youtube_performance(db_path: str, limit: int | None = None) -> dict:
                             db.execute("UPDATE youtube_publications SET published_at=? WHERE story_id=?", (published_epoch, str(job["story_id"])))
                         db.close()
                     except Exception:
+                        pass
+                if config.ready:
+                    try:
+                        collect_video_retention(db_path,story_id=sample.story_id,video_id=video_id,
+                            client_id=config.client_id,client_secret=config.client_secret,
+                            refresh_token=config.refresh_token,
+                            published_at=published.timestamp() if published_at else None)
+                    except Exception:
+                        # Analytics retention can be unavailable or delayed; never block base metrics.
                         pass
                 result["recorded"] += 1
             result["checked"] += len(batch)

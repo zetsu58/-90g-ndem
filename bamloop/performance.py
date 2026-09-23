@@ -7,6 +7,7 @@ from googleapiclient.discovery import build
 from production.queue import PublishQueue
 from viral_futbol.performance_learning import PerformanceSample, PerformanceStore
 from viral_futbol.scene_performance import record_story_scene_snapshot
+from viral_futbol.retention_collector import collect_video_retention
 
 
 def _client():
@@ -41,5 +42,14 @@ def collect(db_path: str, limit: int = 25) -> dict:
             score=store.record(sample)
             record_story_scene_snapshot(db_path,sample.story_id,age_hours=age,views=sample.views,
                 likes=sample.likes,comments=sample.comments,performance_score=score)
+            try:
+                collect_video_retention(db_path,story_id=sample.story_id,video_id=str(row["youtube_video_id"]),
+                    client_id=os.environ["MEME_YOUTUBE_CLIENT_ID"].strip(),
+                    client_secret=os.environ["MEME_YOUTUBE_CLIENT_SECRET"].strip(),
+                    refresh_token=os.environ["MEME_YOUTUBE_REFRESH_TOKEN"].strip(),
+                    published_at=float(row["published_at"] or time.time()))
+            except Exception:
+                # Retention is advisory and may lag behind publication.
+                pass
             collected+=1
     return {"ready":True,"collected":collected}
