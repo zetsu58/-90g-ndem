@@ -143,9 +143,12 @@ def select_providers(db, now=None):
     return LocalStoryProvider(), LocalImageProvider(), 'local', 0.0, budget
 
 
-def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None = None):
+def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None = None, preferred_motion: str | None = None):
     story_provider, image_provider, provider, cost, _ = select_providers(None)
     story = story_provider.create(seed)
+    if preferred_motion:
+        from dataclasses import replace
+        story = Story(story.idea, tuple(replace(scene, movement=preferred_motion) for scene in story.scenes))
     output = Path(output_dir); output.mkdir(parents=True,exist_ok=True)
     content_hash=hashlib.sha256(story.idea.encode()).hexdigest()[:16]
     final=output/f'story-{content_hash}.mp4'
