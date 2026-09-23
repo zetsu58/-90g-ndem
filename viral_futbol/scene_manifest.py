@@ -37,8 +37,12 @@ class SceneManifestStore:
     def __enter__(self): return self
     def __exit__(self, *_): self.db.close()
 
-    def plan(self, story_id: str, title: str, target_seconds: float = 24.0) -> list[dict]:
+    def plan(self, story_id: str, title: str, target_seconds: float = 24.0, creative: dict | None = None) -> list[dict]:
         plan = timeline_plan(title, target_seconds)
+        if creative and creative.get("apply"):
+            for shot in plan["shots"]:
+                if creative.get("motion"): shot["motion"] = str(creative["motion"])
+                if creative.get("transition"): shot["transition"] = str(creative["transition"])
         now = time.time()
         with self.db:
             for index, shot in enumerate(plan["shots"]):
