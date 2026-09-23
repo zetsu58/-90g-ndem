@@ -4,6 +4,7 @@ from __future__ import annotations
 import time
 from viral_futbol.scene_manifest import SceneManifestStore
 from viral_futbol.scene_learning import recommended_scene_creative
+from viral_futbol.retention_optimizer import recommended_retention_creative
 
 
 def remember_story_scenes(db_path: str, content_id: str, story) -> list[dict]:
@@ -28,4 +29,9 @@ def remember_story_scenes(db_path: str, content_id: str, story) -> list[dict]:
 
 def learned_story_advice(db_path: str) -> dict | None:
     advice = recommended_scene_creative(db_path)
+    return advice.as_dict() if advice else None
+
+
+def measured_retention_advice(db_path: str) -> dict | None:
+    advice=recommended_retention_creative(db_path)
     return advice.as_dict() if advice else None
