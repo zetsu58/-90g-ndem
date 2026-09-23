@@ -17,6 +17,7 @@ from .content_strategy import build_content_strategy
 from .source_intelligence import confidence_gate
 from .scene_manifest import SceneManifestStore
 from .scene_learning import recommended_scene_creative
+from .retention_optimizer import recommended_retention_creative
 from .service import publisher_family
 from production.github_ledger import GitHubLedger, required as ledger_required, ready as ledger_ready
 
@@ -101,6 +102,7 @@ def run_once_v2(settings) -> dict:
                     diagnostics["duplicates"] += 1; ld["duplicates"] += 1; continue
                 strategy = build_content_strategy(settings.db_path, cluster[0].title) if language == "tr" else None
                 scene_advice = recommended_scene_creative(settings.db_path) if language == "tr" else None
+    retention_advice = recommended_retention_creative(settings.db_path) if language == "tr" else None
                 payload = build_v2_payload(cluster, settings, language, score)
                 if strategy and strategy.confidence in {"medium", "high"}:
                     payload["custom_system_prompt"] += f" Öğrenilmiş açılış biçimi: {strategy.hook}. Bunu doğal uygula; doğrulanmış bilgilerin dışına çıkma."
