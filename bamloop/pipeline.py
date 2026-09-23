@@ -10,7 +10,7 @@ from viral_futbol.youtube_publisher import _validate_short
 from .engine import build_video, choose_idea
 from .story import create_story_video
 from .youtube import upload, credentials_ready
-from .learning import remember_story_scenes, learned_story_advice
+from .learning import remember_story_scenes, learned_story_advice, measured_retention_advice
 from .performance import collect as collect_performance
 
 
@@ -64,9 +64,12 @@ def prepare(*, source_url=None, voice_fixture=None):
             content_id=digest[:24]
             scenes=remember_story_scenes(db_path(),content_id,story)
             advice=learned_story_advice(db_path())
+            retention_advice=measured_retention_advice(db_path())
             metadata["scene_manifest"]={"count":len(scenes),"repairable":True}
             if advice:
                 metadata["learned_scene_creative"]=advice
+            if retention_advice:
+                metadata["measured_retention_creative"]=retention_advice
         _validate_short(video)
         content_id=digest[:24]
         queued=queue.enqueue(content_id,kind,label,digest,video,metadata,provider)
