@@ -15,6 +15,7 @@ from .visual_quality import build_visual_quality_plan, prioritized_terms
 from .youtube_publisher import remember_manifest
 from .content_strategy import build_content_strategy
 from .source_intelligence import confidence_gate
+from .scene_manifest import SceneManifestStore
 from .service import publisher_family
 from production.github_ledger import GitHubLedger, required as ledger_required, ready as ledger_ready
 
@@ -103,6 +104,10 @@ def run_once_v2(settings) -> dict:
                     payload["custom_system_prompt"] += f" Öğrenilmiş açılış biçimi: {strategy.hook}. Bunu doğal uygula; doğrulanmış bilgilerin dışına çıkma."
                 selected = {"language": language, "title": cluster[0].title, "sources": sorted({s.publisher for s in cluster}), "viral_score": score, "viral_reasons": list(decision.score.reasons), "trend_gate": "accepted", "script_engine": "shorts-v2" if language == "tr" else "legacy-en", "video_subject": payload.get("video_subject", ""), "clip_duration": payload.get("video_clip_duration"), "subtitle_font_size": payload.get("font_size"), "strategy": strategy.as_dict() if strategy else None}
                 remember_manifest(settings.db_path, story_id, cluster[0].title, language, sorted({s.publisher for s in cluster}))
+                if language == "tr":
+                    with SceneManifestStore(settings.db_path) as scene_store:
+                        scenes = scene_store.plan(story_id, cluster[0].title, target_seconds=24.0)
+                    selected["scene_manifest"] = {"count": len(scenes), "repairable": True}
                 if settings.dry_run:
                     submit(payload, settings, idempotency_key=f"viral-futbol:{story_id}")
                     diagnostics["previewed"] += 1; ld["previewed"] += 1; selected["task_id"] = "dry-run"; diagnostics["selected"].append(selected); continue
