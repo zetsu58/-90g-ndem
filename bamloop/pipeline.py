@@ -14,6 +14,7 @@ from .learning import remember_story_scenes, learned_story_advice, measured_rete
 from .performance import collect as collect_performance
 from viral_futbol.creative_exploration import choose_creative
 from viral_futbol.experiment_store import ExperimentStore
+from viral_futbol.runtime_policy import safe_exploit_percent
 
 
 def db_path():
@@ -61,7 +62,7 @@ def prepare(*, source_url=None, voice_fixture=None):
             else:
                 raise LedgerError('No unused AI story concept available')
             retention_advice=measured_retention_advice(db_path())
-            experiment=choose_creative(seed,retention_advice)
+            experiment=choose_creative(seed,retention_advice,exploit_percent=safe_exploit_percent(db_path(),"bamloop"))
             with ExperimentStore(db_path()) as experiments:
                 experiments.record(seed,"bamloop",experiment)
             preferred_motion=experiment.get("motion") if experiment.get("apply") else None
