@@ -1,0 +1,31 @@
+name: Production Smoke
+on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg espeak-ng
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e . pytest
+      - run: pytest -q
+      - name: BAMLOOP render smoke
+        env:
+          MEME_OUTPUT_DIR: /tmp/bamloop-smoke
+          MEME_DB_PATH: /tmp/bamloop-smoke.sqlite3
+          BAMLOOP_AI_STORY_WEIGHT: '1'
+          BAMLOOP_MEME_WEIGHT: '0'
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from bamloop.story import create_story_video
+          video, metadata, story, provider, _ = create_story_video("ci-smoke", "/tmp/bamloop-smoke")
+          assert Path(video).exists() and Path(video).stat().st_size > 1000
+          print(video, story.idea, provider)
+          PY
