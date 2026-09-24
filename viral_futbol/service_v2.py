@@ -20,6 +20,7 @@ from .scene_learning import recommended_scene_creative
 from .retention_optimizer import recommended_retention_creative
 from .creative_exploration import choose_creative
 from .experiment_store import ExperimentStore
+from .runtime_policy import safe_exploit_percent
 from .service import publisher_family
 from production.github_ledger import GitHubLedger, required as ledger_required, ready as ledger_ready
 
@@ -105,7 +106,7 @@ def run_once_v2(settings) -> dict:
                 strategy = build_content_strategy(settings.db_path, cluster[0].title) if language == "tr" else None
                 scene_advice = recommended_scene_creative(settings.db_path) if language == "tr" else None
                 retention_advice = recommended_retention_creative(settings.db_path) if language == "tr" else None
-                creative_choice = choose_creative(story_id, retention_advice.as_dict() if retention_advice else None)
+                creative_choice = choose_creative(story_id, retention_advice.as_dict() if retention_advice else None, exploit_percent=safe_exploit_percent(settings.db_path,"viral_futbol"))
                 with ExperimentStore(settings.db_path) as experiments:
                     experiments.record(story_id,"viral_futbol",creative_choice)
                 payload = build_v2_payload(cluster, settings, language, score)
