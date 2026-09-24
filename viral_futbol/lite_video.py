@@ -14,6 +14,7 @@ from .creative_learning import recommended_hook
 from .video_timeline import timeline_plan
 from .shot_renderer import render_shot, stitch_shots
 from .creative_store import remember_creative
+from .nvidia_ai import generate_narration
 from production.music import instrumental
 
 
@@ -126,7 +127,8 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
             hook = recommended_hook(db_path)
     except Exception as exc:
         print(f"ViralFutbol hook learning deferred: {exc}", flush=True)
-    narration = build_lite_narration(title, sources, language, hook, facts)
+    local_narration = build_lite_narration(title, sources, language, hook, facts)
+    narration = generate_narration(title=title, facts=facts or [], language=language, fallback=local_narration)
     if db_path:
         remember_creative(db_path, story_id, hook)
     card_path = directory / f"{story_id}.png"; audio_path = directory / f"{story_id}.mp3"
