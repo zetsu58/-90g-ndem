@@ -4,6 +4,8 @@ import json
 import os
 import threading
 import time
+import tempfile
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from bamloop.pipeline import cycle, db_path, publish_pending
@@ -92,6 +94,20 @@ class Handler(BaseHTTPRequestHandler):
             self._reply(200 if ready else 503, {'status':'ready' if ready else 'persistence_required'})
         elif self.path in {'/','/health','/healthz'}:
             self._reply(200, {'status':'ok'})
+        elif self.path == '/production-smoke':
+            if os.getenv('PRODUCTION_SMOKE_ENABLED','false').casefold() not in {'1','true','yes','on'}:
+                self._reply(404, {'error':'not_found'})
+                return
+            try:
+                from bamloop.story import create_story_video
+                with tempfile.TemporaryDirectory(prefix='bamloop-smoke-') as tmp:
+                    video, _metadata, story, provider, _cost=create_story_video('production-smoke',tmp)
+                    path=Path(video)
+                    if not path.exists() or path.stat().st_size < 1000:
+                        raise RuntimeError('renderer produced no usable video')
+                    self._reply(200, {'ok':True,'bytes':path.stat().st_size,'provider':str(provider),'idea':story.idea})
+            except Exception as exc:
+                self._reply(500, {'ok':False,'error':type(exc).__name__,'detail':str(exc)[:300]})
         elif self.path == '/status':
             with LOCK: snapshot = dict(STATE)
             try:
