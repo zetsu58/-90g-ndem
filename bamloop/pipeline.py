@@ -13,6 +13,7 @@ from .youtube import upload, credentials_ready
 from .learning import remember_story_scenes, learned_story_advice, measured_retention_advice
 from .performance import collect as collect_performance
 from viral_futbol.creative_exploration import choose_creative
+from viral_futbol.experiment_store import ExperimentStore
 
 
 def db_path():
@@ -61,6 +62,8 @@ def prepare(*, source_url=None, voice_fixture=None):
                 raise LedgerError('No unused AI story concept available')
             retention_advice=measured_retention_advice(db_path())
             experiment=choose_creative(seed,retention_advice)
+            with ExperimentStore(db_path()) as experiments:
+                experiments.record(seed,"bamloop",experiment)
             preferred_motion=experiment.get("motion") if experiment.get("apply") else None
             video,metadata,story,provider,_=create_story_video(seed,os.getenv('MEME_OUTPUT_DIR','storage/bamloop'),voice_fixture=voice_fixture,preferred_motion=preferred_motion)
             label=story.idea
