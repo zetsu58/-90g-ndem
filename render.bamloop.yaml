@@ -39,9 +39,9 @@ services:
       - key: BAMLOOP_DAILY_AI_BUDGET_USD
         value: "0"
       - key: MEME_YOUTUBE_ENABLED
-        value: "true"
+        value: "false"
       - key: MEME_YOUTUBE_PRIVACY_STATUS
-        value: public
+        value: private
       - key: PEXELS_API_KEY
         sync: false
       - key: MEME_YOUTUBE_CLIENT_ID
@@ -49,4 +49,6 @@ services:
       - key: MEME_YOUTUBE_CLIENT_SECRET
         sync: false
       - key: MEME_YOUTUBE_REFRESH_TOKEN
+        sync: false
+      - key: MEME_YOUTUBE_EXPECTED_CHANNEL_ID
         sync: false

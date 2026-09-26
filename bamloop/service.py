@@ -117,6 +117,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._reply(500, {'ok':False,'error':type(exc).__name__,'detail':str(exc)[:300]})
         elif self.path in {'/status', '/api/status'}:
             with LOCK: snapshot = dict(STATE)
+            from production.youtube_auth import AUTH_STATUS
+            snapshot.update(AUTH_STATUS['bamloop'])
             snapshot['service_version'] = 'bamloop-2026.09.26-status-v2'
             snapshot['deploy_commit'] = os.getenv('RENDER_GIT_COMMIT', '')[:40] or None
             try:
@@ -129,6 +131,7 @@ class Handler(BaseHTTPRequestHandler):
                     snapshot['youtube_credentials_ready']=credentials_ready()
                     snapshot['youtube_enabled']=os.getenv('MEME_YOUTUBE_ENABLED','false').casefold() in {'1','true','yes','on'}
                     snapshot['youtube_privacy_status']=os.getenv('MEME_YOUTUBE_PRIVACY_STATUS','private')
+                    snapshot['youtube_expected_channel_id']=os.getenv('MEME_YOUTUBE_EXPECTED_CHANNEL_ID') or None
                     snapshot['db_persistence_ready']=persistent_render_path(db_path())
                     snapshot['direct_publish_enabled']=direct_publish_enabled()
                     snapshot['github_ledger_required']=ledger_required()

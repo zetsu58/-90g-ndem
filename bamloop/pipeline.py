@@ -104,6 +104,10 @@ def publish_pending():
             # A bad refresh token must never consume a durable upload slot.
             # Once reserved, an interrupted upload is intentionally quarantined.
             credentials = refresh_credentials()
+            from bamloop.youtube import verify_channel
+            channel = verify_channel(credentials)
+            from production.youtube_auth import record_auth
+            record_auth('bamloop',channel=channel)
             if ledger:
                 try:
                     if not ledger.reserve('bamloop',job['content_id']):
@@ -125,9 +129,20 @@ def publish_pending():
                 else: result_error = None
             else: result_error = None
             queue.published(job['content_id'],video_id)
-            return {'uploaded':1,'video_id':video_id,'ledger_warning':result_error,**queue.counts()}
+            try:
+                from production.youtube_auth import verify_public_upload
+                public_verified=verify_public_upload(credentials,video_id) if os.getenv('MEME_YOUTUBE_PRIVACY_STATUS','private').casefold()=='public' else False
+            except Exception:
+                public_verified=False
+            return {'uploaded':1,'video_id':video_id,'public_verified':public_verified,
+                    'verification_warning':None if public_verified else 'youtube_public_unconfirmed',
+                    'ledger_warning':result_error,**queue.counts()}
         except Exception as exc:
-            error_type=type(exc).__name__
+            from production.youtube_auth import safe_oauth_error
+            error_type=safe_oauth_error(exc) if type(exc).__name__ in {'RefreshError','ChannelMismatch','ChannelNotConfigured'} else type(exc).__name__
+            if type(exc).__name__ in {'RefreshError','ChannelMismatch','ChannelNotConfigured'}:
+                from production.youtube_auth import record_auth
+                record_auth('bamloop',error=error_type)
             status=getattr(getattr(exc,'resp',None),'status',None)
             queue.failed(job['content_id'],error_type)
             return {'uploaded':0,'upload_failed':1,'upload_error_type':error_type,

@@ -5,6 +5,7 @@ import time
 import httplib2
 from functools import partial
 from pathlib import Path
+from production.youtube_auth import SCOPES, authorized_client, channel_preflight
 
 
 def _enabled() -> bool:
@@ -31,10 +32,14 @@ def refresh_credentials():
         token_uri="https://oauth2.googleapis.com/token",
         client_id=os.environ["MEME_YOUTUBE_CLIENT_ID"].strip(),
         client_secret=os.environ["MEME_YOUTUBE_CLIENT_SECRET"].strip(),
-        scopes=["https://www.googleapis.com/auth/youtube.upload"],
+        scopes=SCOPES,
     )
     credentials.refresh(partial(Request(), timeout=30))
     return credentials
+
+
+def verify_channel(credentials):
+    return channel_preflight(credentials, os.getenv('MEME_YOUTUBE_EXPECTED_CHANNEL_ID','').strip())
 
 
 def upload(path: Path, metadata: dict, *, credentials=None) -> str:
@@ -46,7 +51,7 @@ def upload(path: Path, metadata: dict, *, credentials=None) -> str:
 
     if credentials is None:
         credentials = refresh_credentials()
-    youtube = build("youtube", "v3", http=AuthorizedHttp(credentials,http=httplib2.Http(timeout=60)), cache_discovery=False)
+    youtube = authorized_client(credentials)
     privacy = os.getenv("MEME_YOUTUBE_PRIVACY_STATUS", "private").casefold()
     if privacy not in {"private", "unlisted", "public"}:
         privacy = "private"

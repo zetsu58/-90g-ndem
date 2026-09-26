@@ -51,6 +51,7 @@ def start_cycle() -> bool:
 def public_status() -> dict:
     from .publishers.x_transport import x_credentials_ready
     from .youtube_publisher import YouTubeConfig
+    from production.youtube_auth import AUTH_STATUS
     settings = Settings()
     youtube = YouTubeConfig.from_env()
     from production.queue import PublishQueue, persistent_render_path, publishing_storage_ready, direct_publish_enabled
@@ -81,7 +82,7 @@ def public_status() -> dict:
     except Exception:
         publishing = {'queue_size': None, 'videos_today': None, 'next_publish_slot': None, 'db_persistence_ready': False}
     return {
-        **dict(_state), **publishing,
+        **dict(_state), **publishing, **AUTH_STATUS['viral_futbol'],
         'deploy_commit': os.getenv('RENDER_GIT_COMMIT') if re.fullmatch(r'[0-9a-f]{40}', os.getenv('RENDER_GIT_COMMIT','')) else None,
         "configuration": {
             "dry_run": settings.dry_run,
@@ -96,6 +97,7 @@ def public_status() -> dict:
             "youtube_enabled": youtube.enabled,
             "youtube_credentials_ready": youtube.ready,
             "youtube_privacy_status": youtube.privacy_status,
+            "youtube_expected_channel_id": os.getenv("YOUTUBE_EXPECTED_CHANNEL_ID") or None,
             "shorts_min_width": os.getenv("SHORTS_MIN_WIDTH", "720"),
             "shorts_min_height": os.getenv("SHORTS_MIN_HEIGHT", "1280"),
             "direct_publish_enabled": direct_publish_enabled(),

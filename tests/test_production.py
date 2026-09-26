@@ -129,6 +129,8 @@ class ProductionTests(unittest.TestCase):
             self.enqueue(queue,'bam-direct')
             with patch('bamloop.pipeline.credentials_ready',return_value=True), \
                  patch('bamloop.pipeline.refresh_credentials', return_value=object()), \
+                 patch('bamloop.youtube.verify_channel', return_value={'id':'UC123','title':'test'}), \
+                 patch('production.youtube_auth.verify_public_upload',return_value=True), \
                  patch('bamloop.pipeline._validate_short'), \
                  patch('bamloop.pipeline.upload',return_value='real-bam-id'):
                 self.assertEqual(publish_pending()['uploaded'],1)
@@ -167,6 +169,8 @@ class ProductionTests(unittest.TestCase):
             with patch('viral_futbol.youtube_publisher._download'), \
                  patch('viral_futbol.youtube_publisher._validate_short',return_value={'duration':30}), \
                  patch('viral_futbol.youtube_publisher._refresh_credentials',return_value=object()), \
+                 patch('viral_futbol.youtube_publisher.channel_preflight',return_value={'id':'UC123','title':'test'}), \
+                 patch('viral_futbol.youtube_publisher.verify_public_upload',return_value=True), \
                  patch('viral_futbol.youtube_publisher._upload',return_value='real-viral-id'):
                 result=publish_ready(Settings(db_path=self.db),limit=1)
             self.assertEqual(result['published'],1)
@@ -212,6 +216,8 @@ class ProductionTests(unittest.TestCase):
             with patch('viral_futbol.youtube_publisher._download'), \
                  patch('viral_futbol.youtube_publisher._validate_short',return_value={'duration':30}), \
                  patch('viral_futbol.youtube_publisher._refresh_credentials',return_value=object()), \
+                 patch('viral_futbol.youtube_publisher.channel_preflight',return_value={'id':'UC123','title':'test'}), \
+                 patch('viral_futbol.youtube_publisher.verify_public_upload',return_value=True), \
                  patch('production.github_ledger.required',return_value=True), \
                  patch('production.github_ledger.ready',return_value=True), \
                  patch('production.github_ledger.GitHubLedger') as ledger, \

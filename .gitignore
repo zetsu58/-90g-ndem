@@ -9,3 +9,4 @@ __pycache__/
 *.mp3
 storage/
 *.egg-info/
+youtube_oauth_*.json

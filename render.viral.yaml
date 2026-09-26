@@ -60,3 +60,5 @@ services:
         sync: false
       - key: YOUTUBE_REFRESH_TOKEN
         sync: false
+      - key: YOUTUBE_EXPECTED_CHANNEL_ID
+        sync: false
