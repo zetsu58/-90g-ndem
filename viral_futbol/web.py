@@ -203,8 +203,8 @@ def main() -> None:
     port = int(os.getenv("PORT", "8080"))
     if os.getenv("NEWS_AUTOSTART_WORKER", "true").casefold() in {"1", "true", "yes", "on"}:
         threading.Thread(target=_autonomous_loop, name="viral-futbol-worker", daemon=True).start()
-    if os.getenv("REMOTION_SMOKE_ON_START", "false").casefold() in {"1", "true", "yes", "on"}:
-        threading.Thread(target=_startup_remotion_smoke, name="remotion-smoke", daemon=True).start()
+    # One isolated startup smoke render validates Remotion without touching publish queues.
+    threading.Thread(target=_startup_remotion_smoke, name="remotion-smoke", daemon=True).start()
     print(f"ViralFutbol web service starting: {VERSION} port={port}", flush=True)
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
 
