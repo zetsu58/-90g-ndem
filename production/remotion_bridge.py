@@ -35,7 +35,7 @@ def render(*, output: Path, title: str, caption: str, duration: float, kind: str
         subprocess.run(
             ["node", "remotion/render.mjs", name, str(output)],
             check=True,
-            timeout=max(180, int(os.getenv("REMOTION_TIMEOUT_SECONDS", "360"))),
+            timeout=max(10, int(os.getenv("REMOTION_TIMEOUT_SECONDS", "360"))),
         )
         return output.exists() and output.stat().st_size > 1024 and b"ftyp" in output.read_bytes()[:64]
     except Exception as exc:
