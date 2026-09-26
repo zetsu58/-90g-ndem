@@ -166,12 +166,64 @@ class ProductionTests(unittest.TestCase):
                 manifests.remember('viral-direct','Kulüp oyuncuyu duyurdu','tr',['Kulüp'])
             with patch('viral_futbol.youtube_publisher._download'), \
                  patch('viral_futbol.youtube_publisher._validate_short',return_value={'duration':30}), \
+                 patch('viral_futbol.youtube_publisher._refresh_credentials',return_value=object()), \
                  patch('viral_futbol.youtube_publisher._upload',return_value='real-viral-id'):
                 result=publish_ready(Settings(db_path=self.db),limit=1)
             self.assertEqual(result['published'],1)
             with PublishQueue(self.db,'viral_futbol') as queue:
                 row=queue.db.execute("SELECT youtube_video_id FROM publish_queue WHERE content_id='viral-direct'").fetchone()
                 self.assertEqual(row[0],'real-viral-id')
+
+    def test_viral_refresh_failure_does_not_reserve_ledger(self):
+        from viral_futbol.config import Settings
+        from viral_futbol.service import Store
+        from viral_futbol.youtube_publisher import PublicationStore, publish_ready
+        env={'NEWS_DB_PATH':self.db,'PUBLISH_DIRECT_ENABLED':'true','YOUTUBE_ENABLED':'true',
+             'YOUTUBE_CLIENT_ID':'fixture','YOUTUBE_CLIENT_SECRET':'fixture','YOUTUBE_REFRESH_TOKEN':'fixture'}
+        with patch.dict(os.environ,env):
+            with Store(self.db) as store:
+                self.assertTrue(store.reserve('auth-reject','tr',max_attempts=3,stale_seconds=60))
+                store.mark_complete('auth-reject','file:///unused.mp4')
+            with PublicationStore(self.db) as manifests:
+                manifests.remember('auth-reject','Gerçek olmayan test başlığı','tr',[])
+            with patch('viral_futbol.youtube_publisher._download'), \
+                 patch('viral_futbol.youtube_publisher._validate_short',return_value={'duration':30}), \
+                 patch('viral_futbol.youtube_publisher._refresh_credentials',side_effect=RuntimeError('invalid_grant')), \
+                 patch('production.github_ledger.GitHubLedger') as ledger, \
+                 patch('viral_futbol.youtube_publisher._upload') as upload:
+                result=publish_ready(Settings(db_path=self.db),limit=1)
+            self.assertEqual(result['failed'],1)
+            ledger.return_value.reserve.assert_not_called()
+            upload.assert_not_called()
+
+    def test_viral_uploaded_id_survives_ledger_write_failure(self):
+        from viral_futbol.config import Settings
+        from viral_futbol.service import Store
+        from viral_futbol.youtube_publisher import PublicationStore, publish_ready
+        from production.github_ledger import LedgerError
+        env={'NEWS_DB_PATH':self.db,'PUBLISH_DIRECT_ENABLED':'true','YOUTUBE_ENABLED':'true',
+             'YOUTUBE_CLIENT_ID':'fixture','YOUTUBE_CLIENT_SECRET':'fixture','YOUTUBE_REFRESH_TOKEN':'fixture'}
+        with patch.dict(os.environ,env):
+            with Store(self.db) as store:
+                store.reserve('ledger-write-failure','tr',max_attempts=3,stale_seconds=60)
+                store.mark_complete('ledger-write-failure','file:///unused.mp4')
+            with PublicationStore(self.db) as manifests:
+                manifests.remember('ledger-write-failure','Yayın testi','tr',[])
+            with patch('viral_futbol.youtube_publisher._download'), \
+                 patch('viral_futbol.youtube_publisher._validate_short',return_value={'duration':30}), \
+                 patch('viral_futbol.youtube_publisher._refresh_credentials',return_value=object()), \
+                 patch('production.github_ledger.required',return_value=True), \
+                 patch('production.github_ledger.ready',return_value=True), \
+                 patch('production.github_ledger.GitHubLedger') as ledger, \
+                 patch('viral_futbol.youtube_publisher._upload',return_value='actual-response-id'):
+                ledger.return_value.reserve.return_value=True
+                ledger.return_value.published.side_effect=LedgerError('offline')
+                result=publish_ready(Settings(db_path=self.db),limit=1)
+            self.assertEqual(result['published'],1)
+            self.assertEqual(result['ledger_warning'],'ledger_record_failed')
+            with PublishQueue(self.db,'viral_futbol') as queue:
+                row=queue.db.execute("SELECT upload_state,youtube_video_id FROM publish_queue WHERE content_id='ledger-write-failure'").fetchone()
+                self.assertEqual(tuple(row),('published','actual-response-id'))
 
 
 if __name__ == '__main__': unittest.main()
