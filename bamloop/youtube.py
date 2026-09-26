@@ -17,13 +17,12 @@ def credentials_ready() -> bool:
     )
 
 
-def upload(path: Path, metadata: dict) -> str:
+def refresh_credentials():
+    """Verify OAuth before reserving a ledger slot or starting an upload."""
     if not credentials_ready():
         raise RuntimeError("BAMLOOP YouTube credentials are not configured")
     from google.oauth2.credentials import Credentials
-    from google_auth_httplib2 import AuthorizedHttp
-    from googleapiclient.discovery import build
-    from googleapiclient.http import MediaFileUpload
+    from google.auth.transport.requests import Request
 
     credentials = Credentials(
         token=None,
@@ -33,6 +32,19 @@ def upload(path: Path, metadata: dict) -> str:
         client_secret=os.environ["MEME_YOUTUBE_CLIENT_SECRET"].strip(),
         scopes=["https://www.googleapis.com/auth/youtube.upload"],
     )
+    credentials.refresh(Request(timeout=30))
+    return credentials
+
+
+def upload(path: Path, metadata: dict, *, credentials=None) -> str:
+    if not credentials_ready():
+        raise RuntimeError("BAMLOOP YouTube credentials are not configured")
+    from google_auth_httplib2 import AuthorizedHttp
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaFileUpload
+
+    if credentials is None:
+        credentials = refresh_credentials()
     youtube = build("youtube", "v3", http=AuthorizedHttp(credentials,http=httplib2.Http(timeout=60)), cache_discovery=False)
     privacy = os.getenv("MEME_YOUTUBE_PRIVACY_STATUS", "private").casefold()
     if privacy not in {"private", "unlisted", "public"}:
@@ -62,4 +74,3 @@ def upload(path: Path, metadata: dict) -> str:
     if not video_id:
         raise RuntimeError("YouTube upload completed without a video id")
     return video_id
-

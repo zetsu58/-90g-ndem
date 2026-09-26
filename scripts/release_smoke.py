@@ -38,7 +38,7 @@ def main() -> int:
         image = root / "frame.png"
         Image.new("RGB", (1080, 1920), "#102030").save(image)
 
-        durations = [1.4, 1.6]
+        durations = [6.5, 6.5]
         shots = []
         for index, duration in enumerate(durations):
             path = root / f"shot-{index}.mp4"
@@ -59,7 +59,6 @@ def main() -> int:
             "-c:a", "aac", "-b:a", "96k", "-shortest", str(final),
         ], check=True, timeout=180)
 
-        os.environ["SHORTS_MIN_DURATION_SECONDS"] = "1"
         quality = _validate_short(final)
         if quality["width"] != 1080 or quality["height"] != 1920:
             raise RuntimeError(f"Full HD gate failed: {quality}")

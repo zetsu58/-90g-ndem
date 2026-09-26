@@ -9,7 +9,7 @@ from production.github_ledger import GitHubLedger, required as ledger_required, 
 from viral_futbol.youtube_publisher import _validate_short
 from .engine import build_video, choose_idea
 from .story import create_story_video
-from .youtube import upload, credentials_ready
+from .youtube import upload, credentials_ready, refresh_credentials
 from .learning import remember_story_scenes, learned_story_advice, measured_retention_advice
 from .performance import collect as collect_performance
 from viral_futbol.creative_exploration import choose_creative
@@ -101,6 +101,9 @@ def publish_pending():
             queue.reject(job['content_id'],str(exc))
             return {'uploaded':0,'quality_blocked':1,**queue.counts()}
         try:
+            # A bad refresh token must never consume a durable upload slot.
+            # Once reserved, an interrupted upload is intentionally quarantined.
+            credentials = refresh_credentials()
             if ledger:
                 try:
                     if not ledger.reserve('bamloop',job['content_id']):
@@ -112,7 +115,7 @@ def publish_pending():
                 except LedgerError:
                     queue.failed(job['content_id'],'ledger_unavailable_or_limit')
                     return {'uploaded':0,'ledger_blocked':True,**queue.counts()}
-            video_id=upload(Path(job['video_path']),json.loads(job['metadata']))
+            video_id=upload(Path(job['video_path']),json.loads(job['metadata']),credentials=credentials)
             if ledger:
                 try: ledger.published('bamloop',job['content_id'],video_id)
                 except LedgerError:
