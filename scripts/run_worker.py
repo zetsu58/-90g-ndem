@@ -20,8 +20,13 @@ def _x_daily_limit() -> int:
         return 20
 
 
-def cycle() -> dict:
+def cycle(progress=None) -> dict:
+    def stage(name: str) -> None:
+        print(f"ViralFutbol cycle stage: {name}", flush=True)
+        if progress:
+            progress(name)
     settings = Settings()
+    stage("trend_gate")
     result = {"trend_gate": None, "x": {"verified": 0, "published": 0, "duplicates": 0, "budget_blocked": 0, "gate_blocked": 0, "failed": 0}, "shorts": None, "youtube": None, "performance": None}
 
     try:
@@ -34,6 +39,7 @@ def cycle() -> dict:
     gate_ok = "error" not in gate_result
     accepted_titles = {str(item.get("title") or "").strip() for item in gate_result.get("top", []) if str(item.get("title") or "").strip()}
 
+    stage("x_newsroom")
     try:
         clusters = fetch_x_newsroom(settings)
         result["x"]["verified"] = len(clusters)
@@ -67,6 +73,7 @@ def cycle() -> dict:
         result["x"]["failed"] += 1
         print(f"ViralFutbol X newsroom deferred: {exc}", flush=True)
 
+    stage("shorts_scan")
     try:
         result["shorts"] = run_once_v2(settings)
     except Exception as exc:
@@ -76,6 +83,7 @@ def cycle() -> dict:
     # Upload only after this cycle's Shorts scan completed cleanly. Existing
     # complete jobs remain queued instead of being published during a degraded run.
     shorts_ok = isinstance(result.get("shorts"), dict) and "error" not in (result.get("shorts") or {})
+    stage("youtube_publish")
     if shorts_ok:
         try:
             result["youtube"] = publish_ready(settings)
@@ -87,12 +95,14 @@ def cycle() -> dict:
 
     # Performance collection is deliberately non-blocking: analytics/OAuth trouble
     # must never stop news scanning, rendering, or publishing.
+    stage("performance")
     try:
         result["performance"] = collect_youtube_performance(settings.db_path)
     except Exception as exc:
         result["performance"] = {"error": str(exc), "deferred": True}
         print(f"ViralFutbol performance collector deferred: {exc}", flush=True)
 
+    stage("done")
     return result
 
 
