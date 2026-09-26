@@ -171,7 +171,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
         concat_path = None
         video_input = ["-loop", "1", "-framerate", "24", "-i", str(card_path)]
     if motion_video:
-        video_filter = "scale=1080:1920:flags=lanczos,eq=contrast=1.04:saturation=1.06,fade=t=in:st=0:d=0.10,fps=30,format=yuv420p"
+        video_filter = "scale=720:1280:flags=bilinear,eq=contrast=1.04:saturation=1.06,fade=t=in:st=0:d=0.10,fps=30,format=yuv420p"
     else:
         video_filter = "scale=1350:2400:flags=lanczos,crop=1080:1920:x='135+82*sin(t*0.82)+27*sin(t*2.1)':y='240+105*cos(t*0.61)+24*sin(t*1.7)',eq=contrast=1.06:saturation=1.08,fade=t=in:st=0:d=0.10,fps=30,format=yuv420p"
     try:
@@ -191,11 +191,11 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     if render_remotion(output=final_path, title=title, caption=narration.split(".")[0], duration=target_duration, kind="football", media=remotion_media, audio=audio_path, music=music_path if music_path and music_path.is_file() else None):
         command = None
     else:
-        command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), *music_input, "-vf", video_filter, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-t", f"{target_duration:.2f}", "-shortest", "-movflags", "+faststart", str(final_path)]
+        command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), *music_input, "-vf", video_filter, "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-t", f"{target_duration:.2f}", "-shortest", "-movflags", "+faststart", str(final_path)]
     try:
-        timeout = max(60, int(os.getenv("LITE_VIDEO_TIMEOUT_SECONDS", "180")))
+        timeout = max(45, int(os.getenv("LITE_VIDEO_TIMEOUT_SECONDS", "120")))
     except ValueError:
-        timeout = 180
+        timeout = 120
     if command is not None:
         subprocess.run(command, check=True, timeout=timeout)
     if final_path.stat().st_size < 1024 or b"ftyp" not in final_path.read_bytes()[:64]: raise RuntimeError("Lite video engine did not create a valid MP4")
