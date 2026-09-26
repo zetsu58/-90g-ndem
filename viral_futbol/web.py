@@ -209,8 +209,25 @@ def _startup_remotion_smoke() -> None:
         else:
             os.environ["REMOTION_TIMEOUT_SECONDS"] = previous_timeout
 
+def _bootstrap_database() -> None:
+    """Create every runtime-owned table before autonomous workers start."""
+    settings = Settings()
+    from .service import Store
+    from .scene_manifest import SceneManifestStore
+    from .youtube_publisher import PublicationStore
+    from production.queue import PublishQueue
+    with Store(settings.db_path):
+        pass
+    with SceneManifestStore(settings.db_path):
+        pass
+    with PublicationStore(settings.db_path):
+        pass
+    with PublishQueue(settings.db_path, "viral_futbol"):
+        pass
+
 def main() -> None:
     port = int(os.getenv("PORT", "8080"))
+    _bootstrap_database()
     if os.getenv("NEWS_AUTOSTART_WORKER", "true").casefold() in {"1", "true", "yes", "on"}:
         threading.Thread(target=_autonomous_loop, name="viral-futbol-worker", daemon=True).start()
     # One isolated startup smoke render validates Remotion without touching publish queues.
