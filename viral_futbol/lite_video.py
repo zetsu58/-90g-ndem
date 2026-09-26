@@ -117,7 +117,11 @@ def _media_duration(path: Path, fallback: float = 24.0) -> float:
         return fallback
 
 
-def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: list[str] | None = None, language: str, voice_name: str, output_dir: str) -> Path:
+def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: list[str] | None = None, language: str, voice_name: str, output_dir: str, progress=None) -> Path:
+    def stage(name: str) -> None:
+        print(f"ViralFutbol render stage: {name}", flush=True)
+        if progress:
+            progress(name)
     directory = Path(output_dir); directory.mkdir(parents=True, exist_ok=True); final_path = directory / f"{story_id}.mp4"
     if final_path.exists() and final_path.stat().st_size > 1024: return final_path
     hook = None
@@ -131,6 +135,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     if db_path:
         remember_creative(db_path, story_id, hook)
     card_path = directory / f"{story_id}.png"; audio_path = directory / f"{story_id}.mp3"
+    stage("media_search")
     frames = download_pexels_frames(title=title, narration=narration, sources=sources, output_dir=directory, story_id=story_id)
     # Editorial graphics are honest when relevant licensed imagery is absent.
     # Never substitute footage of an unrelated player or club.
@@ -140,6 +145,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
             frame = directory / f"{story_id}-editorial-{index}.png"
             _card(frame, beats[index % len(beats)], narration, sources, index)
             frames.append(frame)
+    stage("tts")
     try: asyncio.run(_save_speech(narration, _edge_voice(voice_name, language), audio_path))
     except Exception as exc:
         offline_voice = "tr" if language == "tr" else "en-us"; print(f"ViralFutbol Edge TTS unavailable, using offline voice: {exc}", flush=True); subprocess.run(["espeak-ng", "-v", offline_voice, "-s", "175", "-w", str(audio_path), narration], check=True, timeout=60)
@@ -151,11 +157,13 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     shot_paths = []
     motion_video = None
     if frames:
+        stage("shots")
         for index, shot in enumerate(timeline["shots"]):
             shot_path = directory / f"{story_id}-shot-{index}.mp4"
             render_shot(frames[index % len(frames)], shot_path, float(shot["duration"]), str(shot["motion"]))
             shot_paths.append(shot_path)
         motion_video = directory / f"{story_id}-motion.mp4"
+        stage("stitch")
         stitch_shots(shot_paths, motion_video, [str(shot["transition"]) for shot in timeline["shots"]], [float(shot["duration"]) for shot in timeline["shots"]])
         concat_path = None
         video_input = ["-i", str(motion_video)]
@@ -178,6 +186,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
         music_input = ["-stream_loop", "-1", "-i", str(music_path)]
     else:
         music_input = ["-stream_loop", "-1", "-i", str(instrumental(directory / "original-bed.wav"))]
+    stage("final_render")
     remotion_media = [Path(frame) for frame in frames]
     if render_remotion(output=final_path, title=title, caption=narration.split(".")[0], duration=target_duration, kind="football", media=remotion_media, audio=audio_path, music=music_path if music_path and music_path.is_file() else None):
         command = None
@@ -195,4 +204,5 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     for frame in frames: frame.unlink(missing_ok=True)
     for shot_path in shot_paths: shot_path.unlink(missing_ok=True)
     if motion_video: motion_video.unlink(missing_ok=True)
+    stage("complete")
     return final_path
