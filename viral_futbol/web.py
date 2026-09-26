@@ -224,8 +224,11 @@ def main() -> None:
     _bootstrap_database()
     if os.getenv("NEWS_AUTOSTART_WORKER", "true").casefold() in {"1", "true", "yes", "on"}:
         threading.Thread(target=_autonomous_loop, name="viral-futbol-worker", daemon=True).start()
-    # One isolated startup smoke render validates Remotion without touching publish queues.
-    threading.Thread(target=_startup_remotion_smoke, name="remotion-smoke", daemon=True).start()
+    # Remotion rendering is optional on constrained hosts; FFmpeg remains the production renderer.
+    if os.getenv("REMOTION_SMOKE_ON_START", "false").casefold() in {"1", "true", "yes", "on"}:
+        threading.Thread(target=_startup_remotion_smoke, name="remotion-smoke", daemon=True).start()
+    else:
+        _state["remotion_smoke"] = {"ok": None, "engine": "remotion", "state": "disabled", "reason": "ffmpeg-production-renderer"}
     print(f"ViralFutbol web service starting: {VERSION} port={port}", flush=True)
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
 
