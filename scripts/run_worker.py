@@ -40,7 +40,10 @@ def cycle(progress=None) -> dict:
     accepted_titles = {str(item.get("title") or "").strip() for item in gate_result.get("top", []) if str(item.get("title") or "").strip()}
 
     stage("x_newsroom")
-    try:
+    if os.getenv("X_PUBLISH_ENABLED", "false").casefold() not in {"1", "true", "yes", "on"}:
+        result["x"]["disabled"] = True
+    else:
+      try:
         clusters = fetch_x_newsroom(settings)
         result["x"]["verified"] = len(clusters)
         limit = _x_daily_limit()
@@ -69,7 +72,7 @@ def cycle(progress=None) -> dict:
                     x_store.release(title)
                     result["x"]["failed"] += 1
                     print(f"ViralFutbol X publish failed: {publish_result.error}", flush=True)
-    except Exception as exc:
+      except Exception as exc:
         result["x"]["failed"] += 1
         print(f"ViralFutbol X newsroom deferred: {exc}", flush=True)
 

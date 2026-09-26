@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 import time
 import tempfile
@@ -58,14 +59,30 @@ def public_status() -> dict:
         with PublishQueue(settings.db_path, 'viral_futbol') as queue:
             counts=queue.db.execute("SELECT upload_state, COUNT(*) FROM publish_queue WHERE channel='viral_futbol' GROUP BY upload_state").fetchall()
             by_state={row[0]:row[1] for row in counts}
+            last_upload=queue.db.execute("SELECT upload_state,last_error,youtube_video_id FROM publish_queue WHERE channel='viral_futbol' ORDER BY COALESCE(published_at,NULLIF(scheduled_at,0),created_at) DESC LIMIT 1").fetchone()
+            # Queue exceptions are stored as type names; never serve raw HTTP
+            # bodies, media URLs, or arbitrary error strings from this endpoint.
+            error_type = None
+            if last_upload and last_upload['last_error']:
+                candidate = str(last_upload['last_error'])
+                if re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]{0,79}', candidate):
+                    error_type = candidate
+                elif candidate.startswith('Quality gate:'):
+                    error_type = 'QualityGate'
+                else:
+                    error_type = 'UploadOrLedgerError'
             publishing = {**queue.counts(), 'next_publish_slot': queue.next_slot(),
               'render_count':queue.db.execute("SELECT COUNT(*) FROM publish_queue WHERE channel='viral_futbol'").fetchone()[0],
               'upload_count':by_state.get('published',0), 'failure_count':by_state.get('failed',0)+by_state.get('quality_blocked',0),
+              'last_upload_state':last_upload['upload_state'] if last_upload else None,
+              'last_upload_error_type':error_type,
+              'last_uploaded_video_id':last_upload['youtube_video_id'] if last_upload and last_upload['upload_state']=='published' else None,
               'db_persistence_ready': persistent_render_path(settings.db_path)}
     except Exception:
         publishing = {'queue_size': None, 'videos_today': None, 'next_publish_slot': None, 'db_persistence_ready': False}
     return {
         **dict(_state), **publishing,
+        'deploy_commit': os.getenv('RENDER_GIT_COMMIT') if re.fullmatch(r'[0-9a-f]{40}', os.getenv('RENDER_GIT_COMMIT','')) else None,
         "configuration": {
             "dry_run": settings.dry_run,
             "video_engine": settings.video_engine,
@@ -79,6 +96,8 @@ def public_status() -> dict:
             "youtube_enabled": youtube.enabled,
             "youtube_credentials_ready": youtube.ready,
             "youtube_privacy_status": youtube.privacy_status,
+            "shorts_min_width": os.getenv("SHORTS_MIN_WIDTH", "720"),
+            "shorts_min_height": os.getenv("SHORTS_MIN_HEIGHT", "1280"),
             "direct_publish_enabled": direct_publish_enabled(),
             "github_ledger_required": ledger_required(),
             "github_ledger_ready": ledger_ready() if ledger_required() else False,
