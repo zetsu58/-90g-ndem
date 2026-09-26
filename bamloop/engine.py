@@ -86,9 +86,18 @@ def find_licensed_clip(query: str, api_key: str) -> tuple[str, str]:
 
 def _download(url: str, destination: Path) -> None:
     request = urllib.request.Request(url, headers={"User-Agent": "BAMLOOP/1.0"})
-    with urllib.request.urlopen(request, timeout=90) as response, destination.open("wb") as output:
-        while chunk := response.read(1024 * 1024):
-            output.write(chunk)
+    maximum = 100 * 1024 * 1024
+    try:
+        with urllib.request.urlopen(request, timeout=45) as response, destination.open("wb") as output:
+            total = 0
+            while chunk := response.read(1024 * 1024):
+                total += len(chunk)
+                if total > maximum:
+                    raise ValueError("Licensed source clip exceeds size limit")
+                output.write(chunk)
+    except Exception:
+        destination.unlink(missing_ok=True)
+        raise
     if destination.stat().st_size < 10_000:
         raise RuntimeError("Downloaded clip is unexpectedly small")
 
@@ -107,7 +116,12 @@ def build_video(
     key = hashlib.sha256(f"{idea.query}|{idea.caption}|{source_url or ''}".encode()).hexdigest()[:16]
     output = directory / f"bamloop-{key}.mp4"
     if output.exists() and output.stat().st_size > 10_000:
-        return output, {"title": idea.title, "caption": idea.caption, "cached": True}
+        from viral_futbol.youtube_publisher import _validate_short
+        try:
+            _validate_short(output)
+            return output, {"title": idea.title, "caption": idea.caption, "cached": True}
+        except (OSError, ValueError):
+            output.unlink(missing_ok=True)
 
     attribution = "Provided source clip"
     if source_url is None:
@@ -139,22 +153,25 @@ def build_video(
     )
     music = os.getenv('BAMLOOP_MUSIC_FILE','')
     music_path = Path(music) if music and Path(music).is_file() else instrumental(directory/'original-bed.wav')
+    pending = directory / f"bamloop-{key}.pending.mp4"
     command = [
         "ffmpeg", "-y", "-loglevel", "error", "-filter_complex_threads", "1", "-i", str(source),
         "-stream_loop", "-1", "-i", str(music_path),
         "-filter_complex", f"{video_filter};[1:a]volume=0.35,afade=t=in:st=0:d=0.10,afade=t=out:st=11.75:d=0.25,alimiter=limit=0.90[a]",
         "-map", "[v]", "-map", "[a]", "-t", "12",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "1",
-        "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(output),
+        "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(pending),
     ]
     try:
-        if not render_remotion(output=output, title=idea.title, caption=idea.caption, duration=12, kind="meme", media=[source], music=music_path):
+        if not render_remotion(output=pending, title=idea.title, caption=idea.caption, duration=12, kind="meme", media=[source], music=music_path):
             subprocess.run(command, check=True, timeout=180)
+        from viral_futbol.youtube_publisher import _validate_short
+        _validate_short(pending)
+        pending.replace(output)
     finally:
         source.unlink(missing_ok=True)
         caption_file.unlink(missing_ok=True)
-    if output.stat().st_size < 10_000 or b"ftyp" not in output.read_bytes()[:64]:
-        raise RuntimeError("FFmpeg did not produce a valid MP4")
+        pending.unlink(missing_ok=True)
     return output, {
         "title": f"{idea.title} #Shorts"[:100],
         "description": "#funny #meme #shorts #viral",

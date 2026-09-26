@@ -153,8 +153,11 @@ def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None
     content_hash=hashlib.sha256(story.idea.encode()).hexdigest()[:16]
     final=output/f'story-{content_hash}.mp4'
     if final.exists():
-        _validate_short(final)
-        return final, {'title':story.idea[:90]+' #Shorts','description':'Özgün kısa kurgu. #Shorts #hikaye','tags':['hikaye','shorts','kurgu']}, story, provider, cost
+        try:
+            _validate_short(final)
+            return final, {'title':story.idea[:90]+' #Shorts','description':'Özgün kısa kurgu. #Shorts #hikaye','tags':['hikaye','shorts','kurgu']}, story, provider, cost
+        except (OSError, ValueError):
+            final.unlink(missing_ok=True)
     with tempfile.TemporaryDirectory(dir=output) as tmp:
         folder=Path(tmp); clips=[]
         scene_seconds=max(8,int(os.getenv('BAMLOOP_STORY_SCENE_SECONDS','9')))
@@ -187,10 +190,12 @@ def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None
             subprocess.run([binary,'-v','tr','-s','160','-w',str(narration),speech],check=True,timeout=90)
         music=os.getenv('BAMLOOP_MUSIC_FILE','')
         bed=['-stream_loop','-1','-i',music] if music and Path(music).is_file() else ['-stream_loop','-1','-i',str(instrumental(output/'original-bed.wav'))]
+        pending=folder/'pending.mp4'
         subprocess.run(['ffmpeg','-y','-loglevel','error','-filter_complex_threads','1','-filter_threads','1','-i',str(visuals),'-i',str(narration),*bed,
             '-filter_complex','[1:a]apad,volume=1.3,asplit=2[side][main];[2:a]volume=0.18[b];[b][side]sidechaincompress=threshold=0.03:ratio=8:detection=rms[d];[main][d]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[a]',
             '-map','0:v','-map','[a]','-t','36','-vf','scale=1080:1920:flags=bilinear,format=yuv420p',
             '-c:v','libx264','-preset','ultrafast','-crf','23','-threads','1',
-            '-c:a','aac','-b:a','128k','-movflags','+faststart',str(final)],check=True,timeout=180)
-    _validate_short(final)
+            '-c:a','aac','-b:a','128k','-movflags','+faststart',str(pending)],check=True,timeout=180)
+        _validate_short(pending)
+        pending.replace(final)
     return final, {'title':story.idea[:90]+' #Shorts','description':'Özgün kısa kurgu. #Shorts #hikaye','tags':['hikaye','shorts','kurgu']}, story, provider, cost
