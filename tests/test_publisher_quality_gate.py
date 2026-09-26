@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from viral_futbol.youtube_publisher import _validate_short
+from viral_futbol.youtube_publisher import _safe_upload_error, _validate_short
 
 
 @pytest.mark.parametrize("width,height,accepted", [(720, 1280, True), (720, 1400, False), (640, 1138, False)])
@@ -21,3 +21,11 @@ def test_publish_gate_requires_vertical_720p_and_nine_sixteen(tmp_path, monkeypa
         else:
             with pytest.raises(ValueError, match="Quality gate"):
                 _validate_short(video)
+
+
+def test_upload_error_reports_only_safe_http_reason():
+    class ProviderError(Exception):
+        resp = type('Response', (), {'status': 403})()
+        content = b'{"error":{"errors":[{"reason":"quotaExceeded","message":"refresh_token=private"}]}}'
+
+    assert _safe_upload_error(ProviderError()) == 'YouTubeHTTP403_quotaExceeded'
