@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .discovery_metadata import discovery_metadata
+from production.youtube_auth import SCOPES, channel_preflight, safe_oauth_error, authorized_client, record_auth, verify_public_upload
 
 
 @dataclass(frozen=True)
@@ -144,7 +145,7 @@ def _refresh_credentials(config:YouTubeConfig):
     """Fail authentication before creating an irreversible ledger reservation."""
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
-    credentials=Credentials(token=None,refresh_token=config.refresh_token,token_uri="https://oauth2.googleapis.com/token",client_id=config.client_id,client_secret=config.client_secret,scopes=["https://www.googleapis.com/auth/youtube.upload"])
+    credentials=Credentials(token=None,refresh_token=config.refresh_token,token_uri="https://oauth2.googleapis.com/token",client_id=config.client_id,client_secret=config.client_secret,scopes=SCOPES)
     credentials.refresh(partial(Request(), timeout=30))
     return credentials
 
@@ -155,7 +156,7 @@ def _upload(path:Path,job:dict,config:YouTubeConfig,*,credentials=None)->str:
     from googleapiclient.http import MediaFileUpload
     if credentials is None:
         credentials=_refresh_credentials(config)
-    youtube=build("youtube","v3",http=AuthorizedHttp(credentials,http=httplib2.Http(timeout=60)),cache_discovery=False)
+    youtube=authorized_client(credentials)
     title,description,tags=_metadata(job)
     request=youtube.videos().insert(part="snippet,status",body={"snippet":{"title":title,"description":description,"tags":tags,"categoryId":config.category_id,"defaultLanguage":str(job.get("language") or "tr")},"status":{"privacyStatus":config.privacy_status,"selfDeclaredMadeForKids":False}},media_body=MediaFileUpload(str(path),mimetype="video/mp4",chunksize=8*1024*1024,resumable=True)); response=None
     deadline=time.monotonic()+300
@@ -203,6 +204,10 @@ def publish_ready(settings,limit:int=2)->dict:
                     result['validated'].append({'story_id':story_id,**quality})
                     # OAuth errors must not leave unresolvable slot reservations.
                     credentials=_refresh_credentials(config)
+                    channel=channel_preflight(credentials,os.getenv('YOUTUBE_EXPECTED_CHANNEL_ID','').strip())
+                    result['youtube_channel_id']=channel['id']
+                    result['youtube_channel_title']=channel['title']
+                    record_auth('viral_futbol',channel=channel)
                     if ledger:
                         try:
                             if not ledger.reserve('viral_futbol',story_id):
@@ -232,6 +237,14 @@ def publish_ready(settings,limit:int=2)->dict:
                 queue.published(story_id,video_id)
                 result['published']+=1
                 result['last_video_id']=video_id
+                try:
+                    result['last_video_public_verified']=verify_public_upload(credentials,video_id) if config.privacy_status == 'public' else False
+                except Exception:
+                    # A real upload cannot safely be retried after a read failure.
+                    result['last_video_public_verified']=False
+                    result['verification_warning']='youtube_video_read_failed'
+                if config.privacy_status == 'public' and not result['last_video_public_verified']:
+                    result.setdefault('verification_warning','youtube_public_unconfirmed')
                 if ledger_warning: result['ledger_warning']=ledger_warning
                 try:
                     manifests.claim(story_id)
@@ -239,7 +252,9 @@ def publish_ready(settings,limit:int=2)->dict:
                 except Exception:
                     print(f'ViralFutbol performance indexing deferred ({story_id})',flush=True)
             except Exception as exc:
-                reason = _safe_upload_error(exc)
+                reason = safe_oauth_error(exc) if type(exc).__name__ == 'RefreshError' or type(exc).__name__ in {'ChannelMismatch','ChannelNotConfigured'} else _safe_upload_error(exc)
+                if type(exc).__name__ in {'RefreshError','ChannelMismatch','ChannelNotConfigured'}:
+                    record_auth('viral_futbol',error=reason)
                 queue.failed(story_id,reason)
                 result['failed']+=1
                 result['failure_reasons'][reason] = result['failure_reasons'].get(reason, 0) + 1
