@@ -15,6 +15,8 @@ class LiteShortDurationTests(unittest.TestCase):
     def test_short_voiceover_renders_publishable_video(self):
         with tempfile.TemporaryDirectory() as root:
             base = Path(root)
+            # A prior crashed FFmpeg process must not become a cache hit.
+            (base / 'short-voice.mp4').write_bytes(b'ftyp' + b'broken' * 400)
 
             async def speech(_text, _voice, path):
                 subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-f', 'lavfi',
@@ -33,7 +35,8 @@ class LiteShortDurationTests(unittest.TestCase):
                                           voice_name='tr-TR-EmelNeural', output_dir=str(base))
             result = _validate_short(video)
             self.assertGreaterEqual(result['duration'], 12)
-            self.assertEqual((result['width'], result['height']), (1080, 1920))
+            # The low-memory production renderer deliberately outputs 720p.
+            self.assertEqual((result['width'], result['height']), (720, 1280))
 
 
 if __name__ == '__main__':

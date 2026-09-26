@@ -24,6 +24,10 @@ services:
         sync: false
       - key: VIDEO_ENGINE
         value: lite
+      - key: SHORTS_MIN_WIDTH
+        value: "720"
+      - key: SHORTS_MIN_HEIGHT
+        value: "1280"
       - key: NEWS_AUTOSTART_WORKER
         value: "true"
       - key: NEWS_WORKER_INTERVAL_SECONDS
