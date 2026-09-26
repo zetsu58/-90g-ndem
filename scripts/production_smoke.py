@@ -36,7 +36,8 @@ def main():
         results={}
         for name,path in (('viral_futbol',viral),('bamloop_meme',meme),('bamloop_ai_story',story)):
             results[name]=_validate_short(path)
-            assert results[name]['width']==1080 and results[name]['height']==1920
+            expected=(720,1280) if name=='viral_futbol' else (1080,1920)
+            assert (results[name]['width'],results[name]['height'])==expected
             assert results[name]['video_codec']=='h264' and results[name]['audio_codec']=='aac'
             print(json.dumps({'name':name,**results[name]},ensure_ascii=False),flush=True)
         return results
