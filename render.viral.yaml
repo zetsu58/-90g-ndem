@@ -6,6 +6,10 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      - key: REMOTION_ENABLED
+        value: "true"
+      - key: REMOTION_TIMEOUT_SECONDS
+        value: "360"
       - key: NEWS_DB_PATH
         value: storage/viral_futbol.sqlite3
       - key: LITE_VIDEO_DIR
