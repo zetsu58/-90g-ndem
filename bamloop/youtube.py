@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 import httplib2
+from functools import partial
 from pathlib import Path
 
 
@@ -32,7 +33,7 @@ def refresh_credentials():
         client_secret=os.environ["MEME_YOUTUBE_CLIENT_SECRET"].strip(),
         scopes=["https://www.googleapis.com/auth/youtube.upload"],
     )
-    credentials.refresh(Request(timeout=30))
+    credentials.refresh(partial(Request(), timeout=30))
     return credentials
 
 
