@@ -108,8 +108,9 @@ class Handler(BaseHTTPRequestHandler):
                     self._reply(200, {'ok':True,'bytes':path.stat().st_size,'provider':str(provider),'idea':story.idea})
             except Exception as exc:
                 self._reply(500, {'ok':False,'error':type(exc).__name__,'detail':str(exc)[:300]})
-        elif self.path == '/status':
+        elif self.path in {'/status', '/api/status'}:
             with LOCK: snapshot = dict(STATE)
+            snapshot['service_version'] = 'bamloop-2026.09.26-status-v2'
             try:
                 with PublishQueue(db_path(),'bamloop') as queue:
                     snapshot.update(queue.counts())
