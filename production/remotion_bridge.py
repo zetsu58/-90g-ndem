@@ -9,7 +9,7 @@ def enabled() -> bool:
     return os.getenv("REMOTION_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
 
 def render(*, output: Path, title: str, caption: str, duration: float, kind: str,
-           media: list[Path], audio: Path | None = None, music: Path | None = None, *, force: bool = False, timeout_seconds: int | None = None, diagnostic: dict | None = None) -> bool:
+           media: list[Path], audio: Path | None = None, music: Path | None = None, force: bool = False, timeout_seconds: int | None = None, diagnostic: dict | None = None) -> bool:
     if not (force or enabled()):
         return False
     job_id = uuid.uuid4().hex
