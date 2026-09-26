@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from production.music import instrumental
 from production.remotion_bridge import render as render_remotion
+from production.remotion_bridge import render as render_remotion
 
 
 @dataclass(frozen=True)
@@ -148,7 +149,8 @@ def build_video(
         "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(output),
     ]
     try:
-        subprocess.run(command, check=True, timeout=180)
+        if not render_remotion(output=output, title=idea.title, caption=idea.caption, duration=12, kind="meme", media=[]):
+            subprocess.run(command, check=True, timeout=180)
     finally:
         source.unlink(missing_ok=True)
         caption_file.unlink(missing_ok=True)
