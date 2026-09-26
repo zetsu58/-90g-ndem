@@ -1,0 +1,1 @@
+{"name":"viral-bamloop-remotion","private":true,"version":"1.0.0","scripts":{"render":"node render.mjs"},"dependencies":{"@remotion/bundler":"4.0.528","@remotion/renderer":"4.0.528","remotion":"4.0.528","react":"19.1.1","react-dom":"19.1.1"}}

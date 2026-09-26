@@ -1,4 +1,5 @@
 FROM python:3.12-slim
+RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY pyproject.toml README.md /app/
 COPY viral_futbol /app/viral_futbol
@@ -6,6 +7,8 @@ COPY bamloop /app/bamloop
 COPY production /app/production
 COPY scripts /app/scripts
 COPY assets /app/assets
+COPY remotion /app/remotion
+RUN cd /app/remotion && npm install --omit=dev
 RUN python -m compileall -q /app/viral_futbol /app/bamloop /app/production /app/scripts \
     && apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core espeak-ng \
