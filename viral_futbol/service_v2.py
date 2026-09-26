@@ -63,7 +63,7 @@ def build_v2_payload(cluster, settings, language: str, viral_score: int) -> dict
     return payload
 
 
-def run_once_v2(settings) -> dict:
+def run_once_v2(settings, progress=None) -> dict:
     minimum_score = _shorts_min_score()
     if ledger_required() and not ledger_ready():
         return {"ledger_blocked": True, "reason": "github_ledger_token_missing", "fetched": 0, "selected": []}
@@ -134,7 +134,7 @@ def run_once_v2(settings) -> dict:
                     diagnostics["deferred_retry"] += 1; ld["deferred_retry"] += 1; continue
                 try:
                     if settings.video_engine == "lite":
-                        video_path = render_lite_video(story_id=story_id, title=cluster[0].title, sources=sorted({s.publisher for s in cluster}), facts=[s.title for s in cluster[:5]], language=language, voice_name=settings.voice_name if language == "tr" else settings.english_voice_name, output_dir=settings.lite_video_dir)
+                        video_path = render_lite_video(story_id=story_id, title=cluster[0].title, sources=sorted({s.publisher for s in cluster}), facts=[s.title for s in cluster[:5]], language=language, voice_name=settings.voice_name if language == "tr" else settings.english_voice_name, output_dir=settings.lite_video_dir, progress=progress)
                         store.mark_complete(story_id, video_path.resolve().as_uri()); diagnostics["rendered"] += 1; diagnostics["queued"] += 1; diagnostics["generated_lite"] += 1; ld["generated_lite"] += 1; available_slots -= 1; selected["task_id"] = f"lite:{story_id}"
                     else:
                         task_id = submit(payload, settings, idempotency_key=f"viral-futbol:{story_id}")
