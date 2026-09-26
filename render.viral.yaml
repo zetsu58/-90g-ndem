@@ -10,6 +10,8 @@ services:
         value: "true"
       - key: REMOTION_TIMEOUT_SECONDS
         value: "360"
+      - key: REMOTION_SMOKE_ON_START
+        value: "true"
       - key: NEWS_DB_PATH
         value: storage/viral_futbol.sqlite3
       - key: LITE_VIDEO_DIR
