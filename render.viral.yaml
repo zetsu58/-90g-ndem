@@ -7,11 +7,11 @@ services:
     autoDeploy: true
     envVars:
       - key: REMOTION_ENABLED
-        value: "true"
+        value: "false"
       - key: REMOTION_TIMEOUT_SECONDS
         value: "360"
       - key: REMOTION_SMOKE_ON_START
-        value: "true"
+        value: "false"
       - key: NEWS_DB_PATH
         value: storage/viral_futbol.sqlite3
       - key: LITE_VIDEO_DIR
