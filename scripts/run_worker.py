@@ -75,7 +75,7 @@ def cycle(progress=None) -> dict:
 
     stage("shorts_scan")
     try:
-        result["shorts"] = run_once_v2(settings)
+        result["shorts"] = run_once_v2(settings, progress=lambda name: stage(f"shorts:{name}"))
     except Exception as exc:
         result["shorts"] = {"error": str(exc)}
         print(f"ViralFutbol Shorts V2 scan deferred: {exc}", flush=True)
