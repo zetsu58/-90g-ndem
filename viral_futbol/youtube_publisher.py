@@ -139,12 +139,21 @@ def _safe_upload_error(exc: Exception) -> str:
     return f'YouTubeHTTP{status}_{reason}'
 
 
-def _upload(path:Path,job:dict,config:YouTubeConfig)->str:
+def _refresh_credentials(config:YouTubeConfig):
+    """Fail authentication before creating an irreversible ledger reservation."""
     from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
+    credentials=Credentials(token=None,refresh_token=config.refresh_token,token_uri="https://oauth2.googleapis.com/token",client_id=config.client_id,client_secret=config.client_secret,scopes=["https://www.googleapis.com/auth/youtube.upload"])
+    credentials.refresh(Request(timeout=30))
+    return credentials
+
+
+def _upload(path:Path,job:dict,config:YouTubeConfig,*,credentials=None)->str:
     from google_auth_httplib2 import AuthorizedHttp
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload
-    credentials=Credentials(token=None,refresh_token=config.refresh_token,token_uri="https://oauth2.googleapis.com/token",client_id=config.client_id,client_secret=config.client_secret,scopes=["https://www.googleapis.com/auth/youtube.upload"])
+    if credentials is None:
+        credentials=_refresh_credentials(config)
     youtube=build("youtube","v3",http=AuthorizedHttp(credentials,http=httplib2.Http(timeout=60)),cache_discovery=False)
     title,description,tags=_metadata(job)
     request=youtube.videos().insert(part="snippet,status",body={"snippet":{"title":title,"description":description,"tags":tags,"categoryId":config.category_id,"defaultLanguage":str(job.get("language") or "tr")},"status":{"privacyStatus":config.privacy_status,"selfDeclaredMadeForKids":False}},media_body=MediaFileUpload(str(path),mimetype="video/mp4",chunksize=8*1024*1024,resumable=True)); response=None
@@ -191,6 +200,8 @@ def publish_ready(settings,limit:int=2)->dict:
                     except ValueError as exc:
                         result['quality_blocked']+=1; queue.reject(story_id,exc); continue
                     result['validated'].append({'story_id':story_id,**quality})
+                    # OAuth errors must not leave unresolvable slot reservations.
+                    credentials=_refresh_credentials(config)
                     if ledger:
                         try:
                             if not ledger.reserve('viral_futbol',story_id):
@@ -208,11 +219,19 @@ def publish_ready(settings,limit:int=2)->dict:
                             result['skipped']+=1
                             result['skip_reasons']['ledger_unavailable'] = result['skip_reasons'].get('ledger_unavailable', 0) + 1
                             continue
-                    video_id=_upload(video_path,json.loads(job['metadata']),config)
+                    video_id=_upload(video_path,json.loads(job['metadata']),config,credentials=credentials)
+                ledger_warning=None
                 if ledger:
-                    ledger.published('viral_futbol',story_id,video_id)
+                    try:
+                        ledger.published('viral_futbol',story_id,video_id)
+                    except LedgerError:
+                        # The upload succeeded: retain its real ID locally and
+                        # leave the reservation blocking a second upload.
+                        ledger_warning='ledger_record_failed'
                 queue.published(story_id,video_id)
                 result['published']+=1
+                result['last_video_id']=video_id
+                if ledger_warning: result['ledger_warning']=ledger_warning
                 try:
                     manifests.claim(story_id)
                     manifests.published(story_id,video_id)
