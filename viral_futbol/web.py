@@ -193,11 +193,21 @@ def _autonomous_loop() -> None:
 
 
 def _startup_remotion_smoke() -> None:
+    _state["remotion_smoke"] = {"ok": None, "engine": "remotion", "state": "pending"}
     time.sleep(8)
+    _state["remotion_smoke"] = {"ok": None, "engine": "remotion", "state": "running", "started_at": _timestamp()}
+    previous_timeout = os.environ.get("REMOTION_TIMEOUT_SECONDS")
+    os.environ["REMOTION_TIMEOUT_SECONDS"] = "45"
     try:
-        _state["remotion_smoke"] = _remotion_smoke()
+        result = _remotion_smoke()
+        _state["remotion_smoke"] = {**result, "state": "success" if result.get("ok") else "failure", "finished_at": _timestamp()}
     except Exception as exc:
-        _state["remotion_smoke"] = {"ok": False, "engine": "remotion", "error": type(exc).__name__}
+        _state["remotion_smoke"] = {"ok": False, "engine": "remotion", "state": "failure", "error": type(exc).__name__, "detail": str(exc)[:240], "finished_at": _timestamp()}
+    finally:
+        if previous_timeout is None:
+            os.environ.pop("REMOTION_TIMEOUT_SECONDS", None)
+        else:
+            os.environ["REMOTION_TIMEOUT_SECONDS"] = previous_timeout
 
 def main() -> None:
     port = int(os.getenv("PORT", "8080"))
