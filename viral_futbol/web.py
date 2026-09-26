@@ -13,7 +13,7 @@ from .config import Settings
 
 VERSION = os.getenv("RELEASE_VERSION", "90gundem-2026.09-release")
 _lock = threading.Lock()
-_state = {"running": False, "last_result": None, "last_error": None, "last_started_at": None, "last_finished_at": None, "remotion_smoke": None}
+_state = {"running": False, "last_result": None, "last_error": None, "last_started_at": None, "last_finished_at": None, "remotion_smoke": None, "cycle_stage": None, "cycle_stage_at": None}
 
 
 def _timestamp() -> str:
@@ -23,7 +23,7 @@ def _timestamp() -> str:
 def _run_cycle() -> None:
     try:
         from scripts.run_worker import cycle
-        _state["last_result"] = cycle()
+        _state["last_result"] = cycle(lambda stage: _state.update({"cycle_stage": stage, "cycle_stage_at": _timestamp()}))
         _state["last_error"] = None
     except Exception as exc:
         _state["last_error"] = type(exc).__name__
