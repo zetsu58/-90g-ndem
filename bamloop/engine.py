@@ -10,6 +10,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from production.music import instrumental
+from production.remotion_bridge import render as render_remotion
 
 
 @dataclass(frozen=True)
