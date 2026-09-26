@@ -269,6 +269,23 @@ class WorkerIsolationTests(unittest.TestCase):
         self.assertEqual(service.STATE['status'],'error')
         self.assertFalse(service.STATE['running'])
 
+
+class OAuthPreflightTests(unittest.TestCase):
+    def test_both_publishers_pass_bounded_callable_request(self):
+        from bamloop.youtube import refresh_credentials
+        from viral_futbol.youtube_publisher import YouTubeConfig, _refresh_credentials
+        env={'MEME_YOUTUBE_ENABLED':'true','MEME_YOUTUBE_CLIENT_ID':'test-client',
+             'MEME_YOUTUBE_CLIENT_SECRET':'test-secret','MEME_YOUTUBE_REFRESH_TOKEN':'test-token'}
+        with patch.dict(os.environ,env), patch('google.oauth2.credentials.Credentials.refresh') as refresh:
+            refresh_credentials()
+            request=refresh.call_args.args[0]
+            self.assertTrue(callable(request))
+            self.assertEqual(request.keywords['timeout'],30)
+            _refresh_credentials(YouTubeConfig(True,'test-client','test-secret','test-token','public','17',3,30))
+            request=refresh.call_args.args[0]
+            self.assertTrue(callable(request))
+            self.assertEqual(request.keywords['timeout'],30)
+
 class DiskReadinessTests(unittest.TestCase):
     def test_path_requires_actual_mount(self):
         from production.queue import persistent_render_path
