@@ -92,16 +92,13 @@ def public_status() -> dict:
 
 def _remotion_smoke() -> dict:
     from production.remotion_bridge import render as render_remotion
-    # Smoke validation is isolated from production feature-flag state.
-    os.environ["REMOTION_ENABLED"] = "true"
     with tempfile.TemporaryDirectory(prefix="remotion-smoke-") as tmp:
         root = Path(tmp)
-        image = root / "frame.ppm"
+        image = root / "frame.png"
         output = root / "smoke.mp4"
-        width, height = 32, 32
-        header = f"P6\n{width} {height}\n255\n".encode()
-        pixels = bytes([24, 96, 180]) * width * height
-        image.write_bytes(header + pixels)
+        from PIL import Image
+        Image.new("RGB", (64, 64), (24, 96, 180)).save(image)
+        diagnostic = {}
         ok = render_remotion(
             output=output,
             title="90+ GUNDEM",
@@ -109,11 +106,15 @@ def _remotion_smoke() -> dict:
             duration=1.0,
             kind="football",
             media=[image],
+            force=True,
+            timeout_seconds=45,
+            diagnostic=diagnostic,
         )
         return {
             "ok": ok,
             "engine": "remotion",
             "bytes": output.stat().st_size if ok and output.exists() else 0,
+            "diagnostic": diagnostic,
         }
 
 class Handler(BaseHTTPRequestHandler):
@@ -196,18 +197,11 @@ def _startup_remotion_smoke() -> None:
     _state["remotion_smoke"] = {"ok": None, "engine": "remotion", "state": "pending"}
     time.sleep(8)
     _state["remotion_smoke"] = {"ok": None, "engine": "remotion", "state": "running", "started_at": _timestamp()}
-    previous_timeout = os.environ.get("REMOTION_TIMEOUT_SECONDS")
-    os.environ["REMOTION_TIMEOUT_SECONDS"] = "45"
     try:
         result = _remotion_smoke()
         _state["remotion_smoke"] = {**result, "state": "success" if result.get("ok") else "failure", "finished_at": _timestamp()}
     except Exception as exc:
         _state["remotion_smoke"] = {"ok": False, "engine": "remotion", "state": "failure", "error": type(exc).__name__, "detail": str(exc)[:240], "finished_at": _timestamp()}
-    finally:
-        if previous_timeout is None:
-            os.environ.pop("REMOTION_TIMEOUT_SECONDS", None)
-        else:
-            os.environ["REMOTION_TIMEOUT_SECONDS"] = previous_timeout
 
 def _bootstrap_database() -> None:
     """Create every runtime-owned table before autonomous workers start."""
