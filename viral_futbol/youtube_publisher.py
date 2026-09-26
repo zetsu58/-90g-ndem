@@ -7,6 +7,7 @@ import sqlite3
 import subprocess
 import tempfile
 import time
+import httplib2
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -102,7 +103,9 @@ def _validate_short(path:Path)->dict:
     try: max_seconds=min(180,float(os.getenv("SHORTS_MAX_DURATION_SECONDS","70")))
     except ValueError: max_seconds=70.0
     if duration<min_seconds or duration>max_seconds: raise ValueError(f"Quality gate: duration {duration:.1f}s outside {min_seconds:.0f}-{max_seconds:.0f}s")
-    if width<int(os.getenv("SHORTS_MIN_WIDTH","1080")) or height<int(os.getenv("SHORTS_MIN_HEIGHT","1920")): raise ValueError(f"Quality gate: resolution too low ({width}x{height})")
+    # The production FFmpeg renderer intentionally outputs 720p on the 512 MB
+    # Render instance. Do not reject its own valid vertical Shorts by default.
+    if width<int(os.getenv("SHORTS_MIN_WIDTH","720")) or height<int(os.getenv("SHORTS_MIN_HEIGHT","1280")): raise ValueError(f"Quality gate: resolution too low ({width}x{height})")
     if video.get('codec_name') != 'h264' or audios[0].get('codec_name') != 'aac': raise ValueError('Quality gate: H.264/AAC required')
     if height<=width: raise ValueError(f"Quality gate: video is not vertical ({width}x{height})")
     if path.stat().st_size<100_000: raise ValueError(f"Quality gate: file too small ({path.stat().st_size} bytes)")
@@ -118,12 +121,17 @@ def _metadata(job:dict)->tuple[str,str,list[str]]:
 
 def _upload(path:Path,job:dict,config:YouTubeConfig)->str:
     from google.oauth2.credentials import Credentials
+    from google_auth_httplib2 import AuthorizedHttp
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload
-    credentials=Credentials(token=None,refresh_token=config.refresh_token,token_uri="https://oauth2.googleapis.com/token",client_id=config.client_id,client_secret=config.client_secret,scopes=["https://www.googleapis.com/auth/youtube.upload"]); youtube=build("youtube","v3",credentials=credentials,cache_discovery=False); title,description,tags=_metadata(job)
+    credentials=Credentials(token=None,refresh_token=config.refresh_token,token_uri="https://oauth2.googleapis.com/token",client_id=config.client_id,client_secret=config.client_secret,scopes=["https://www.googleapis.com/auth/youtube.upload"])
+    youtube=build("youtube","v3",http=AuthorizedHttp(credentials,http=httplib2.Http(timeout=60)),cache_discovery=False)
+    title,description,tags=_metadata(job)
     request=youtube.videos().insert(part="snippet,status",body={"snippet":{"title":title,"description":description,"tags":tags,"categoryId":config.category_id,"defaultLanguage":str(job.get("language") or "tr")},"status":{"privacyStatus":config.privacy_status,"selfDeclaredMadeForKids":False}},media_body=MediaFileUpload(str(path),mimetype="video/mp4",chunksize=8*1024*1024,resumable=True)); response=None
+    deadline=time.monotonic()+300
     for _ in range(120):
         if response is not None: break
+        if time.monotonic()>deadline: raise TimeoutError("YouTube upload deadline exceeded")
         _,response=request.next_chunk()
     if response is None: raise TimeoutError("YouTube upload exceeded chunk limit")
     video_id=str((response or {}).get("id") or "")

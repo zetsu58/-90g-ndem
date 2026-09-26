@@ -123,7 +123,13 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
         if progress:
             progress(name)
     directory = Path(output_dir); directory.mkdir(parents=True, exist_ok=True); final_path = directory / f"{story_id}.mp4"
-    if final_path.exists() and final_path.stat().st_size > 1024: return final_path
+    if final_path.exists() and final_path.stat().st_size > 1024:
+        from .youtube_publisher import _validate_short
+        try:
+            _validate_short(final_path)
+            return final_path
+        except (OSError, ValueError, RuntimeError):
+            final_path.unlink(missing_ok=True)
     hook = None
     try:
         db_path = (os.getenv("NEWS_DB_PATH", "") or os.getenv("DB_PATH", "")).strip()
@@ -146,7 +152,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
             _card(frame, beats[index % len(beats)], narration, sources, index)
             frames.append(frame)
     stage("tts")
-    try: asyncio.run(_save_speech(narration, _edge_voice(voice_name, language), audio_path))
+    try: asyncio.run(asyncio.wait_for(_save_speech(narration, _edge_voice(voice_name, language), audio_path), timeout=45))
     except Exception as exc:
         offline_voice = "tr" if language == "tr" else "en-us"; print(f"ViralFutbol Edge TTS unavailable, using offline voice: {exc}", flush=True); subprocess.run(["espeak-ng", "-v", offline_voice, "-s", "175", "-w", str(audio_path), narration], check=True, timeout=60)
     audio_duration = _media_duration(audio_path)
@@ -188,17 +194,26 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
         music_input = ["-stream_loop", "-1", "-i", str(instrumental(directory / "original-bed.wav"))]
     stage("final_render")
     remotion_media = [Path(frame) for frame in frames]
-    if render_remotion(output=final_path, title=title, caption=narration.split(".")[0], duration=target_duration, kind="football", media=remotion_media, audio=audio_path, music=music_path if music_path and music_path.is_file() else None):
+    pending_path = directory / f"{story_id}.pending.mp4"
+    if render_remotion(output=pending_path, title=title, caption=narration.split(".")[0], duration=target_duration, kind="football", media=remotion_media, audio=audio_path, music=music_path if music_path and music_path.is_file() else None):
         command = None
     else:
-        command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), *music_input, "-vf", video_filter, "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-t", f"{target_duration:.2f}", "-shortest", "-movflags", "+faststart", str(final_path)]
+        command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), *music_input, "-vf", video_filter, "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-t", f"{target_duration:.2f}", "-shortest", "-movflags", "+faststart", str(pending_path)]
     try:
         timeout = max(45, int(os.getenv("LITE_VIDEO_TIMEOUT_SECONDS", "120")))
     except ValueError:
         timeout = 120
-    if command is not None:
-        subprocess.run(command, check=True, timeout=timeout)
-    if final_path.stat().st_size < 1024 or b"ftyp" not in final_path.read_bytes()[:64]: raise RuntimeError("Lite video engine did not create a valid MP4")
+    try:
+        if command is not None:
+            subprocess.run(command, check=True, timeout=timeout)
+        if not pending_path.exists() or pending_path.stat().st_size < 1024 or b"ftyp" not in pending_path.read_bytes()[:64]:
+            raise RuntimeError("Lite video engine did not create a valid MP4")
+        from .youtube_publisher import _validate_short
+        _validate_short(pending_path)
+        pending_path.replace(final_path)
+    except Exception:
+        pending_path.unlink(missing_ok=True)
+        raise
     card_path.unlink(missing_ok=True); audio_path.unlink(missing_ok=True)
     if concat_path: concat_path.unlink(missing_ok=True)
     for frame in frames: frame.unlink(missing_ok=True)

@@ -55,6 +55,8 @@ class ScenePerformanceStore:
         return len(scenes)
 
     def leaders(self, limit: int = 10) -> list[dict]:
+        with SceneManifestStore(str(self.db.execute('PRAGMA database_list').fetchone()[2])):
+            pass
         rows=self.db.execute("""SELECT m.kind,m.motion,m.transition,
             COUNT(*) samples, AVG(p.performance_score) avg_score
             FROM scene_performance p JOIN scene_manifests m

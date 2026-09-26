@@ -21,8 +21,12 @@ class ExperimentStore:
             (story_id,channel,choice.get("mode","baseline"),choice.get("motion"),
              choice.get("transition"),choice.get("bucket"),time.time()))
     def summary(self, channel: str):
+        # Fresh ephemeral SQLite databases may not have analytics tables yet.
+        from .performance_learning import PerformanceStore
+        with PerformanceStore(str(self.db.execute('PRAGMA database_list').fetchone()[2])):
+            pass
         rows=self.db.execute("""SELECT e.mode,COUNT(DISTINCT e.story_id) videos,
-          AVG(p.performance_score) avg_score
+          AVG(p.score) avg_score
           FROM creative_experiments e LEFT JOIN shorts_performance p ON p.story_id=e.story_id
           WHERE e.channel=? GROUP BY e.mode ORDER BY e.mode""",(channel,)).fetchall()
         return [dict(r) for r in rows]
