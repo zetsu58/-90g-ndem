@@ -107,7 +107,8 @@ def _validate_short(path:Path)->dict:
     # Render instance. Do not reject its own valid vertical Shorts by default.
     if width<int(os.getenv("SHORTS_MIN_WIDTH","720")) or height<int(os.getenv("SHORTS_MIN_HEIGHT","1280")): raise ValueError(f"Quality gate: resolution too low ({width}x{height})")
     if video.get('codec_name') != 'h264' or audios[0].get('codec_name') != 'aac': raise ValueError('Quality gate: H.264/AAC required')
-    if height<=width: raise ValueError(f"Quality gate: video is not vertical ({width}x{height})")
+    if height<=width or abs(width / height - 9 / 16) > 0.02:
+        raise ValueError(f"Quality gate: video is not 9:16 ({width}x{height})")
     if path.stat().st_size<100_000: raise ValueError(f"Quality gate: file too small ({path.stat().st_size} bytes)")
     return {"duration":round(duration,2),"width":width,"height":height,"video_codec":video.get("codec_name"),"audio_codec":audios[0].get("codec_name"),"bytes":path.stat().st_size}
 
@@ -144,7 +145,7 @@ def publish_ready(settings,limit:int=2)->dict:
     from production.queue import PublishQueue, publishing_storage_ready
     from production.github_ledger import GitHubLedger, required as ledger_required, ready as ledger_ready, LedgerError, LedgerCapacity
     config=YouTubeConfig.from_env()
-    result={"enabled":config.enabled,"ready":config.ready,"published":0,"failed":0,"quality_blocked":0,"skipped":0,"validated":[]}
+    result={"enabled":config.enabled,"ready":config.ready,"published":0,"failed":0,"quality_blocked":0,"skipped":0,"skip_reasons":{},"validated":[]}
     with PublicationStore(settings.db_path) as manifests, PublishQueue(settings.db_path,'viral_futbol') as queue:
         # Discovery and rendering continue even while YouTube is unavailable.
         for job in manifests.ready_jobs(limit=100):
@@ -176,14 +177,17 @@ def publish_ready(settings,limit:int=2)->dict:
                             if not ledger.reserve('viral_futbol',story_id):
                                 queue.reject(story_id,'Already recorded in publication ledger')
                                 result['skipped']+=1
+                                result['skip_reasons']['ledger_record_exists'] = result['skip_reasons'].get('ledger_record_exists', 0) + 1
                                 continue
                         except LedgerCapacity as exc:
                             queue.defer(story_id,exc.retry_at)
                             result['skipped']+=1
+                            result['skip_reasons']['ledger_capacity'] = result['skip_reasons'].get('ledger_capacity', 0) + 1
                             continue
                         except LedgerError:
                             queue.failed(story_id,'ledger_unavailable_or_limit')
                             result['skipped']+=1
+                            result['skip_reasons']['ledger_unavailable'] = result['skip_reasons'].get('ledger_unavailable', 0) + 1
                             continue
                     video_id=_upload(video_path,json.loads(job['metadata']),config)
                 if ledger:
