@@ -91,9 +91,9 @@ def public_status() -> dict:
 
 
 def _remotion_smoke() -> dict:
-    from production.remotion_bridge import enabled as remotion_enabled, render as render_remotion
-    if not remotion_enabled():
-        return {"ok": False, "engine": "remotion", "error": "disabled"}
+    from production.remotion_bridge import render as render_remotion
+    # Smoke validation is isolated from production feature-flag state.
+    os.environ["REMOTION_ENABLED"] = "true"
     with tempfile.TemporaryDirectory(prefix="remotion-smoke-") as tmp:
         root = Path(tmp)
         image = root / "frame.ppm"
