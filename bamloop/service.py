@@ -24,6 +24,8 @@ STATE: dict = {
     "last_success": None,
     "last_error": None,
     "last_result": None,
+    "last_uploaded_video_id": None,
+    "last_upload_error_type": None,
 }
 LOCK = threading.Lock()
 
@@ -45,7 +47,10 @@ def worker() -> None:
             _set(status="idle", running=False, last_success=int(time.time()), last_result=result,
                 last_content_type=(result.get('prepare') or {}).get('content_type'),
                 render_count=STATE['render_count'] + int(bool((result.get('prepare') or {}).get('queued'))),
-                upload_count=STATE['upload_count'] + sum(int((result.get(k) or {}).get('uploaded',0)) for k in ('publish','publish_after_prepare')))
+                upload_count=STATE['upload_count'] + sum(int((result.get(k) or {}).get('uploaded',0)) for k in ('publish','publish_after_prepare')),
+                failure_count=STATE['failure_count'] + sum(int((result.get(k) or {}).get('upload_failed',0)) for k in ('publish','publish_after_prepare')),
+                last_uploaded_video_id=next(((result.get(k) or {}).get('video_id') for k in ('publish_after_prepare','publish') if (result.get(k) or {}).get('video_id')), STATE['last_uploaded_video_id']),
+                last_upload_error_type=next(((result.get(k) or {}).get('upload_error_type') for k in ('publish_after_prepare','publish') if (result.get(k) or {}).get('upload_error_type')), None))
         except Exception as exc:
             _set(status="error", running=False, failure_count=STATE["failure_count"]+1, last_error=f"{type(exc).__name__}"[:100])
         # Rendering remains infrequent, but release completed videos promptly
@@ -67,6 +72,8 @@ def worker() -> None:
                         STATE['last_result'] = snapshot
                         STATE['upload_count'] += int(publication.get('uploaded', 0))
                         STATE['failure_count'] += int(publication.get('upload_failed', 0))
+                        STATE['last_uploaded_video_id'] = publication.get('video_id') or STATE['last_uploaded_video_id']
+                        STATE['last_upload_error_type'] = publication.get('upload_error_type')
             except Exception as exc:
                 _set(last_error=type(exc).__name__, failure_count=STATE['failure_count'] + 1)
 
@@ -81,7 +88,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_HEAD(self) -> None:
-        if self.path in {"/", "/health", "/healthz", "/ready", "/status"}:
+        if self.path in {"/", "/health", "/healthz", "/ready", "/status", "/api/status"}:
             self.send_response(200 if self.path != '/ready' or _publish_ready() else 503)
             self.end_headers()
         else:
@@ -111,6 +118,7 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path in {'/status', '/api/status'}:
             with LOCK: snapshot = dict(STATE)
             snapshot['service_version'] = 'bamloop-2026.09.26-status-v2'
+            snapshot['deploy_commit'] = os.getenv('RENDER_GIT_COMMIT', '')[:40] or None
             try:
                 with PublishQueue(db_path(),'bamloop') as queue:
                     snapshot.update(queue.counts())
@@ -126,6 +134,8 @@ class Handler(BaseHTTPRequestHandler):
                     snapshot['github_ledger_required']=ledger_required()
                     snapshot['github_ledger_ready']=ledger_ready() if ledger_required() else False
                     snapshot['publishing_ready']=credentials_ready() and publishing_storage_ready(db_path()) and (not ledger_required() or ledger_ready())
+                    if snapshot.get('last_upload_error_type') == 'RefreshError':
+                        snapshot['publishing_ready'] = False
                     snapshot['persistence_blocked']=snapshot['youtube_enabled'] and not publishing_storage_ready(db_path())
             except Exception:
                 snapshot['db_persistence_ready']=False

@@ -128,11 +128,27 @@ class ProductionTests(unittest.TestCase):
         with patch.dict(os.environ,env), PublishQueue(self.db,'bamloop') as queue:
             self.enqueue(queue,'bam-direct')
             with patch('bamloop.pipeline.credentials_ready',return_value=True), \
+                 patch('bamloop.pipeline.refresh_credentials', return_value=object()), \
                  patch('bamloop.pipeline._validate_short'), \
                  patch('bamloop.pipeline.upload',return_value='real-bam-id'):
                 self.assertEqual(publish_pending()['uploaded'],1)
             row=queue.db.execute("SELECT youtube_video_id,upload_state FROM publish_queue WHERE content_id='bam-direct'").fetchone()
             self.assertEqual(tuple(row),('real-bam-id','published'))
+
+    def test_bamloop_refresh_failure_does_not_reserve_ledger(self):
+        from bamloop.pipeline import publish_pending
+        with patch.dict(os.environ, {'MEME_DB_PATH':self.db,'PUBLISH_DIRECT_ENABLED':'true'}), \
+             PublishQueue(self.db,'bamloop') as queue:
+            self.enqueue(queue,'oauth-failure')
+            with patch('bamloop.pipeline.credentials_ready',return_value=True), \
+                 patch('bamloop.pipeline._validate_short'), \
+                 patch('bamloop.pipeline.refresh_credentials', side_effect=RuntimeError('invalid_grant')), \
+                 patch('bamloop.pipeline.GitHubLedger') as ledger, \
+                 patch('bamloop.pipeline.upload') as upload:
+                result=publish_pending()
+            self.assertEqual(result['upload_failed'],1)
+            ledger.return_value.reserve.assert_not_called()
+            upload.assert_not_called()
 
     def test_direct_viral_publishes_completed_render(self):
         from viral_futbol.config import Settings
@@ -174,12 +190,18 @@ class ServiceTests(unittest.TestCase):
                 thread=threading.Thread(target=server.serve_forever,daemon=True)
                 thread.start()
                 try:
-                    for route in ('/','/health','/ready','/status'):
+                    routes=('/','/health','/ready','/status') + (('/healthz','/api/status') if handler is BamHandler else ())
+                    for route in routes:
                         with urlopen(Request(f'http://127.0.0.1:{server.server_port}{route}',method='HEAD')) as response:
                             self.assertEqual(response.status,200)
                     with urlopen(f'http://127.0.0.1:{server.server_port}/status') as response:
                         payload=json.load(response)
                     self.assertIn('queue_size',payload)
+                    if handler is BamHandler:
+                        with urlopen(f'http://127.0.0.1:{server.server_port}/api/status') as response:
+                            self.assertEqual(response.status,200)
+                            self.assertEqual(json.load(response)['service_version'],payload['service_version'])
+                        self.assertNotIn('refresh_token',json.dumps(payload).lower())
                 finally:
                     server.shutdown();server.server_close();thread.join()
 
