@@ -41,6 +41,11 @@ await renderMedia({
   concurrency: 1,
   disallowParallelEncoding: true,
   timeoutInMilliseconds: 15000,
+  chromeMode: 'chrome-for-testing',
+  chromiumOptions: {
+    gl: 'swiftshader',
+    enableMultiProcessOnLinux: false,
+  },
   onProgress: ({progress, renderedFrames, encodedFrames}) => {
     console.log('[remotion] progress', {progress, renderedFrames, encodedFrames});
   },
