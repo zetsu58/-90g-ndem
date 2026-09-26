@@ -11,7 +11,7 @@ COPY remotion /app/remotion
 RUN cd /app/remotion && npm install --omit=dev
 RUN python -m compileall -q /app/viral_futbol /app/bamloop /app/production /app/scripts \
     && apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core espeak-ng \
+    && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core espeak-ng chromium \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir . \
     && useradd --create-home --uid 10001 app \
