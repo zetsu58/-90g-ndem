@@ -13,7 +13,7 @@ from .config import Settings
 
 VERSION = os.getenv("RELEASE_VERSION", "90gundem-2026.09-release")
 _lock = threading.Lock()
-_state = {"running": False, "last_result": None, "last_error": None, "last_started_at": None, "last_finished_at": None}
+_state = {"running": False, "last_result": None, "last_error": None, "last_started_at": None, "last_finished_at": None, "remotion_smoke": None}
 
 
 def _timestamp() -> str:
@@ -192,10 +192,19 @@ def _autonomous_loop() -> None:
         time.sleep(interval)
 
 
+def _startup_remotion_smoke() -> None:
+    time.sleep(8)
+    try:
+        _state["remotion_smoke"] = _remotion_smoke()
+    except Exception as exc:
+        _state["remotion_smoke"] = {"ok": False, "engine": "remotion", "error": type(exc).__name__}
+
 def main() -> None:
     port = int(os.getenv("PORT", "8080"))
     if os.getenv("NEWS_AUTOSTART_WORKER", "true").casefold() in {"1", "true", "yes", "on"}:
         threading.Thread(target=_autonomous_loop, name="viral-futbol-worker", daemon=True).start()
+    if os.getenv("REMOTION_SMOKE_ON_START", "false").casefold() in {"1", "true", "yes", "on"}:
+        threading.Thread(target=_startup_remotion_smoke, name="remotion-smoke", daemon=True).start()
     print(f"ViralFutbol web service starting: {VERSION} port={port}", flush=True)
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
 
