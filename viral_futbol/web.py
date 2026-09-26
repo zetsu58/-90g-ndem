@@ -103,7 +103,7 @@ def _remotion_smoke() -> dict:
             output=output,
             title="90+ GUNDEM",
             caption="REMOTION SMOKE TEST",
-            duration=1.0,
+            duration=0.1,
             kind="football",
             media=[image],
             force=True,
