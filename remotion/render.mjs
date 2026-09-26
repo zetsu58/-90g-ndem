@@ -31,5 +31,19 @@ const comp = comps.find((c) => c.id === 'ShortVideo');
 if (!comp) throw new Error('ShortVideo composition missing');
 
 console.log('[remotion] render:start');
-await renderMedia({composition: comp, serveUrl, codec: 'h264', outputLocation: output, inputProps: props, crf: 20, ...browserOptions});
+await renderMedia({
+  composition: comp,
+  serveUrl,
+  codec: 'h264',
+  outputLocation: output,
+  inputProps: props,
+  crf: 20,
+  concurrency: 1,
+  disallowParallelEncoding: true,
+  timeoutInMilliseconds: 15000,
+  onProgress: ({progress, renderedFrames, encodedFrames}) => {
+    console.log('[remotion] progress', {progress, renderedFrames, encodedFrames});
+  },
+  ...browserOptions,
+});
 console.log('[remotion] render:done');
