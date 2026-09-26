@@ -8,7 +8,8 @@ COPY production /app/production
 COPY scripts /app/scripts
 COPY assets /app/assets
 COPY remotion /app/remotion
-RUN cd /app/remotion && npm install --omit=dev
+RUN cd /app/remotion && npm install --omit=dev \
+    && node --input-type=module -e "import {bundle} from '@remotion/bundler'; import path from 'node:path'; await bundle({entryPoint:path.resolve('src/index.ts'),publicDir:path.resolve('public'),outDir:path.resolve('.bundle')});"
 RUN python -m compileall -q /app/viral_futbol /app/bamloop /app/production /app/scripts \
     && apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core espeak-ng chromium \
