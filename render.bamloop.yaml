@@ -6,6 +6,10 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      - key: REMOTION_ENABLED
+        value: "true"
+      - key: REMOTION_TIMEOUT_SECONDS
+        value: "360"
       - key: MEME_OUTPUT_DIR
         value: storage/bamloop
       - key: PUBLISH_DIRECT_ENABLED
