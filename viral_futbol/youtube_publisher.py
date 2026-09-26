@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -120,6 +121,24 @@ def _metadata(job:dict)->tuple[str,str,list[str]]:
     return str(metadata["title"]), str(metadata["description"]), list(metadata["tags"])
 
 
+def _safe_upload_error(exc: Exception) -> str:
+    """Expose an HTTP status and a provider reason, never the response body."""
+    status = getattr(getattr(exc, 'resp', None), 'status', None)
+    if not isinstance(status, int) or status < 400 or status > 599:
+        return type(exc).__name__
+    reason = None
+    try:
+        content = getattr(exc, 'content', b'{}')
+        payload = json.loads(content)
+        errors = (payload.get('error') or {}).get('errors') or []
+        reason = errors[0].get('reason') if errors else None
+    except (TypeError, ValueError, AttributeError, KeyError, IndexError):
+        pass
+    if not isinstance(reason, str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,60}', reason):
+        reason = 'unknown'
+    return f'YouTubeHTTP{status}_{reason}'
+
+
 def _upload(path:Path,job:dict,config:YouTubeConfig)->str:
     from google.oauth2.credentials import Credentials
     from google_auth_httplib2 import AuthorizedHttp
@@ -145,7 +164,7 @@ def publish_ready(settings,limit:int=2)->dict:
     from production.queue import PublishQueue, publishing_storage_ready
     from production.github_ledger import GitHubLedger, required as ledger_required, ready as ledger_ready, LedgerError, LedgerCapacity
     config=YouTubeConfig.from_env()
-    result={"enabled":config.enabled,"ready":config.ready,"published":0,"failed":0,"quality_blocked":0,"skipped":0,"skip_reasons":{},"validated":[]}
+    result={"enabled":config.enabled,"ready":config.ready,"published":0,"failed":0,"quality_blocked":0,"skipped":0,"skip_reasons":{},"failure_reasons":{},"validated":[]}
     with PublicationStore(settings.db_path) as manifests, PublishQueue(settings.db_path,'viral_futbol') as queue:
         # Discovery and rendering continue even while YouTube is unavailable.
         for job in manifests.ready_jobs(limit=100):
@@ -200,10 +219,12 @@ def publish_ready(settings,limit:int=2)->dict:
                 except Exception:
                     print(f'ViralFutbol performance indexing deferred ({story_id})',flush=True)
             except Exception as exc:
-                queue.failed(story_id,type(exc).__name__)
+                reason = _safe_upload_error(exc)
+                queue.failed(story_id,reason)
                 result['failed']+=1
+                result['failure_reasons'][reason] = result['failure_reasons'].get(reason, 0) + 1
                 # Avoid printing HTTP error bodies that might include credentials.
-                print(f'ViralFutbol YouTube upload failed ({story_id}): {type(exc).__name__}',flush=True)
+                print(f'ViralFutbol YouTube upload failed ({story_id}): {reason}',flush=True)
         result.update(queue.counts())
         result['next_publish_slot']=queue.next_slot()
         result['status_counts']=manifests.counts()
