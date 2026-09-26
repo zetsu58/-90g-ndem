@@ -178,12 +178,17 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
         music_input = ["-stream_loop", "-1", "-i", str(music_path)]
     else:
         music_input = ["-stream_loop", "-1", "-i", str(instrumental(directory / "original-bed.wav"))]
-    remotion_media = [Path(frame) for frame in frames]\n    if render_remotion(output=final_path, title=title, caption=narration.split(".")[0], duration=target_duration, kind="football", media=remotion_media, audio=audio_path, music=music_path if music_path and music_path.is_file() else None):\n        command = None\n    else:\n        command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), *music_input, "-vf", video_filter, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-t", f"{target_duration:.2f}", "-shortest", "-movflags", "+faststart", str(final_path)]
+    remotion_media = [Path(frame) for frame in frames]
+    if render_remotion(output=final_path, title=title, caption=narration.split(".")[0], duration=target_duration, kind="football", media=remotion_media, audio=audio_path, music=music_path if music_path and music_path.is_file() else None):
+        command = None
+    else:
+        command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), *music_input, "-vf", video_filter, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-t", f"{target_duration:.2f}", "-shortest", "-movflags", "+faststart", str(final_path)]
     try:
         timeout = max(60, int(os.getenv("LITE_VIDEO_TIMEOUT_SECONDS", "180")))
     except ValueError:
         timeout = 180
-    if command is not None:\n        subprocess.run(command, check=True, timeout=timeout)
+    if command is not None:
+        subprocess.run(command, check=True, timeout=timeout)
     if final_path.stat().st_size < 1024 or b"ftyp" not in final_path.read_bytes()[:64]: raise RuntimeError("Lite video engine did not create a valid MP4")
     card_path.unlink(missing_ok=True); audio_path.unlink(missing_ok=True)
     if concat_path: concat_path.unlink(missing_ok=True)
