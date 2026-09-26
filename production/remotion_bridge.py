@@ -9,8 +9,8 @@ def enabled() -> bool:
     return os.getenv("REMOTION_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
 
 def render(*, output: Path, title: str, caption: str, duration: float, kind: str,
-           media: list[Path], audio: Path | None = None, music: Path | None = None) -> bool:
-    if not enabled():
+           media: list[Path], audio: Path | None = None, music: Path | None = None, *, force: bool = False, timeout_seconds: int | None = None, diagnostic: dict | None = None) -> bool:
+    if not (force or enabled()):
         return False
     job_id = uuid.uuid4().hex
     job_dir = PUBLIC_ROOT / "jobs" / job_id
@@ -32,14 +32,22 @@ def render(*, output: Path, title: str, caption: str, duration: float, kind: str
     os.close(fd)
     Path(name).write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
     try:
-        subprocess.run(
+        completed = subprocess.run(
             ["node", "remotion/render.mjs", name, str(output)],
-            check=True,
-            timeout=max(10, int(os.getenv("REMOTION_TIMEOUT_SECONDS", "360"))),
+            check=True, capture_output=True, text=True,
+            timeout=max(10, timeout_seconds if timeout_seconds is not None else int(os.getenv("REMOTION_TIMEOUT_SECONDS", "360"))),
         )
+        if diagnostic is not None:
+            diagnostic["stdout"] = (completed.stdout or "")[-1000:]
+            diagnostic["stderr"] = (completed.stderr or "")[-1000:]
         return output.exists() and output.stat().st_size > 1024 and b"ftyp" in output.read_bytes()[:64]
     except Exception as exc:
-        print(f"Remotion render failed; FFmpeg fallback active: {exc}", flush=True)
+        if diagnostic is not None:
+            diagnostic["error"] = type(exc).__name__
+            diagnostic["detail"] = str(exc)[-500:]
+            diagnostic["stdout"] = (getattr(exc, "stdout", "") or "")[-1000:]
+            diagnostic["stderr"] = (getattr(exc, "stderr", "") or "")[-1000:]
+        print(f"Remotion render failed; FFmpeg fallback active: {type(exc).__name__}: {exc}", flush=True)
         output.unlink(missing_ok=True)
         return False
     finally:
