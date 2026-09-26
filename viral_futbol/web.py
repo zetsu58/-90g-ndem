@@ -4,6 +4,8 @@ import json
 import os
 import threading
 import time
+import tempfile
+from pathlib import Path
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
@@ -87,6 +89,33 @@ def public_status() -> dict:
     }
 
 
+
+def _remotion_smoke() -> dict:
+    from production.remotion_bridge import enabled as remotion_enabled, render as render_remotion
+    if not remotion_enabled():
+        return {"ok": False, "engine": "remotion", "error": "disabled"}
+    with tempfile.TemporaryDirectory(prefix="remotion-smoke-") as tmp:
+        root = Path(tmp)
+        image = root / "frame.ppm"
+        output = root / "smoke.mp4"
+        width, height = 32, 32
+        header = f"P6\n{width} {height}\n255\n".encode()
+        pixels = bytes([24, 96, 180]) * width * height
+        image.write_bytes(header + pixels)
+        ok = render_remotion(
+            output=output,
+            title="90+ GUNDEM",
+            caption="REMOTION SMOKE TEST",
+            duration=1.0,
+            kind="football",
+            media=[image],
+        )
+        return {
+            "ok": ok,
+            "engine": "remotion",
+            "bytes": output.stat().st_size if ok and output.exists() else 0,
+        }
+
 class Handler(BaseHTTPRequestHandler):
     def _reply(self, status: int, payload: dict) -> None:
         body = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
@@ -122,6 +151,13 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/version":
             self._reply(200, {"status": "ok", "version": VERSION})
+            return
+        if path == "/remotion-smoke":
+            if not self._authorized():
+                self._reply(401, {"error": "unauthorized", "version": VERSION})
+                return
+            result = _remotion_smoke()
+            self._reply(200 if result.get("ok") else 503, {"version": VERSION, **result})
             return
         if path == "/cycle":
             if not self._authorized():
