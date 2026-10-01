@@ -62,8 +62,13 @@ class PublishQueue:
     def next_slot(self, now=None):
         now = time.time() if now is None else now
         start, end = self._local_day(now)
-        max_daily = max(1, int(os.getenv('MAX_SHORTS_PER_DAY','5')))
-        spacing = max(0, float(os.getenv('MIN_HOURS_BETWEEN_SHORTS','3'))) * 3600
+        pending_type_row = self.db.execute("SELECT content_type,metadata FROM publish_queue WHERE channel=? AND upload_state IN ('queued','failed') ORDER BY created_at LIMIT 1",(self.channel,)).fetchone()
+        is_longform = False
+        if pending_type_row:
+            try: is_longform = json.loads(pending_type_row['metadata']).get('content_format') == 'video'
+            except (TypeError,ValueError,json.JSONDecodeError): is_longform = pending_type_row['content_type'] == 'video'
+        max_daily = max(1, int(os.getenv('MAX_VIDEOS_PER_DAY','1') if is_longform else os.getenv('MAX_SHORTS_PER_DAY','5')))
+        spacing = max(0, float(os.getenv('MIN_HOURS_BETWEEN_VIDEOS','12') if is_longform else os.getenv('MIN_HOURS_BETWEEN_SHORTS','3'))) * 3600
         rows = self.db.execute("SELECT published_at,scheduled_at,upload_state FROM publish_queue WHERE channel=? AND (published_at>=? OR (upload_state IN ('uploading','uncertain') AND scheduled_at>=?)) ORDER BY COALESCE(published_at,scheduled_at)", (self.channel,start,start)).fetchall()
         occupied = [float(row['published_at'] or row['scheduled_at']) for row in rows]
         earliest = max(now, max(occupied, default=0)+spacing)
