@@ -116,6 +116,34 @@ def _validate_short(path:Path)->dict:
     return {"duration":round(duration,2),"width":width,"height":height,"video_codec":video.get("codec_name"),"audio_codec":audios[0].get("codec_name"),"bytes":path.stat().st_size}
 
 
+def _validate_video(path:Path, content_format:str="short")->dict:
+    """Validate an MP4 against its explicit publishing profile."""
+    from production.content_formats import profile
+    spec=profile(content_format)
+    probe=_probe(path); streams=probe.get("streams") or []
+    videos=[s for s in streams if s.get("codec_type")=="video"]
+    audios=[s for s in streams if s.get("codec_type")=="audio"]
+    if not videos: raise ValueError("Quality gate: video stream missing")
+    if not audios: raise ValueError("Quality gate: audio stream missing")
+    video=videos[0]; width=int(video.get("width") or 0); height=int(video.get("height") or 0)
+    try: duration=float((probe.get("format") or {}).get("duration") or 0)
+    except (TypeError,ValueError): duration=0
+    if duration < spec.min_seconds or duration > spec.max_seconds:
+        raise ValueError(f"Quality gate: {content_format} duration {duration:.1f}s outside {spec.min_seconds:.0f}-{spec.max_seconds:.0f}s")
+    if width < spec.width or height < spec.height:
+        raise ValueError(f"Quality gate: resolution too low ({width}x{height})")
+    if video.get("codec_name")!="h264" or audios[0].get("codec_name")!="aac":
+        raise ValueError("Quality gate: H.264/AAC required")
+    if spec.orientation=="vertical" and (height<=width or abs(width/height-9/16)>0.02):
+        raise ValueError(f"Quality gate: short is not 9:16 ({width}x{height})")
+    if spec.orientation=="landscape" and (width<=height or abs(width/height-16/9)>0.03):
+        raise ValueError(f"Quality gate: video is not 16:9 ({width}x{height})")
+    if path.stat().st_size<100_000:
+        raise ValueError(f"Quality gate: file too small ({path.stat().st_size} bytes)")
+    return {"format":content_format,"duration":round(duration,2),"width":width,"height":height,
+            "video_codec":video.get("codec_name"),"audio_codec":audios[0].get("codec_name"),"bytes":path.stat().st_size}
+
+
 def _metadata(job:dict)->tuple[str,str,list[str]]:
     language=str(job.get("language") or "tr")
     raw_title=str(job.get("title") or "Futbol gündeminde son dakika").strip()
@@ -198,7 +226,7 @@ def publish_ready(settings,limit:int=2)->dict:
                 with tempfile.TemporaryDirectory(prefix='viral-futbol-') as directory:
                     video_path=Path(directory)/f'{story_id}.mp4'
                     _download(str(job['video_path']),video_path,settings.mpt_api_key,settings.mpt_request_timeout)
-                    try: quality=_validate_short(video_path)
+                    try: quality=_validate_video(video_path, str(json.loads(job['metadata']).get('content_format') or 'short'))
                     except ValueError as exc:
                         result['quality_blocked']+=1; queue.reject(story_id,exc); continue
                     result['validated'].append({'story_id':story_id,**quality})
