@@ -35,4 +35,14 @@ class LongFormRendererTests(unittest.TestCase):
             self.assertEqual(result["metadata"]["content_format"],"video")
             self.assertEqual(result["script_contract"]["evidence_id"],manifest()["id"])
 
+    def test_ffmpeg_fallback_when_remotion_unavailable(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); frame=root/"a.png"; frame.write_bytes(b"x"); audio=root/"a.wav"; audio.write_bytes(b"x"); out=root/"o.mp4"
+            def fake_ffmpeg(**kwargs):
+                out.write_bytes(b"x"*120000)
+            with patch("production.longform_renderer.render",return_value=False), patch("production.longform_renderer.render_slideshow",side_effect=fake_ffmpeg) as ff, patch("production.longform_renderer._validate_video",return_value={"format":"video"}):
+                result=render_longform(subject="Bir konu",channel="bamloop",output=out,media=[frame],audio=audio,fact_manifest=manifest())
+            self.assertEqual(result["renderer"],"ffmpeg")
+            ff.assert_called_once()
+
 if __name__=="__main__": unittest.main()
