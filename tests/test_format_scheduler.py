@@ -8,6 +8,9 @@ class FormatSchedulerTests(unittest.TestCase):
         value=decide(now=100000,last_longform_at=0,longform_enabled=True)
         self.assertTrue(value.shorts)
         self.assertTrue(value.longform)
+    def test_channel_interval_override(self):
+        self.assertFalse(decide(now=3600*10,last_longform_at=0,longform_enabled=True,interval_hours=24).longform)
+        self.assertTrue(decide(now=3600*25,last_longform_at=0,longform_enabled=True,interval_hours=24).longform)
     def test_rotation(self):
         self.assertEqual(channel_kind("viral_futbol",0),"player_career")
         self.assertEqual(channel_kind("viral_futbol",1),"club_history")
