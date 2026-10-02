@@ -56,7 +56,8 @@ def fallback_narration(subject:str,claims:list[str],low:int,high:int)->str:
     for i,claim in enumerate(claims):
         parts.append(f"{transitions[i%len(transitions)]} {claim} Bu bilgi, anlatının doğrulanmış parçalarından biri olarak ele alınmalı; bunun ötesindeki yorumları olgu gibi sunmuyoruz.")
     recap_index=0
-    while len(_words(" ".join(parts))) < low-35 and claims:
+    target=max(low,min(high-30,round((low+high)/2)))
+    while len(_words(" ".join(parts))) < target-35 and claims:
         claim=claims[recap_index%len(claims)]
         parts.append(f"Toparlarken yeniden altını çizmek gereken kayıt şu: {claim} Bu noktayı diğer doğrulanmış kayıtlarla birlikte okumak, konuyu tek bir iddiaya indirgemeden anlamaya yardımcı oluyor.")
         recap_index+=1
