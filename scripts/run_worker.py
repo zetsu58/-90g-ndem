@@ -11,6 +11,7 @@ from viral_futbol.x_dedupe import XPublishedStore
 from viral_futbol.x_newsroom import fetch_x_newsroom
 from viral_futbol.x_pipeline import publish_verified_cluster
 from viral_futbol.trend_pipeline import trend_gate
+from production.format_scheduler import decide as decide_formats
 
 
 def _x_daily_limit() -> int:
@@ -27,7 +28,8 @@ def cycle(progress=None) -> dict:
             progress(name)
     settings = Settings()
     stage("trend_gate")
-    result = {"trend_gate": None, "x": {"verified": 0, "published": 0, "duplicates": 0, "budget_blocked": 0, "gate_blocked": 0, "failed": 0}, "shorts": None, "youtube": None, "performance": None}
+    format_decision = decide_formats(last_longform_at=None)
+    result = {"formats": {"shorts": format_decision.shorts, "longform": format_decision.longform, "reason": format_decision.reason}, "trend_gate": None, "x": {"verified": 0, "published": 0, "duplicates": 0, "budget_blocked": 0, "gate_blocked": 0, "failed": 0}, "shorts": None, "longform": None, "youtube": None, "performance": None}
 
     try:
         result["trend_gate"] = trend_gate(settings)
@@ -82,6 +84,12 @@ def cycle(progress=None) -> dict:
     except Exception as exc:
         result["shorts"] = {"error": str(exc)}
         print(f"ViralFutbol Shorts V2 scan deferred: {exc}", flush=True)
+
+    stage("longform_gate")
+    if format_decision.longform:
+        result["longform"] = {"deferred": True, "reason": "producer_not_wired", "safe": True}
+    else:
+        result["longform"] = {"deferred": True, "reason": format_decision.reason}
 
     # Upload only after this cycle's Shorts scan completed cleanly. Existing
     # complete jobs remain queued instead of being published during a degraded run.
