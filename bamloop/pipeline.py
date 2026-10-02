@@ -15,6 +15,8 @@ from .performance import collect as collect_performance
 from viral_futbol.creative_exploration import choose_creative
 from viral_futbol.experiment_store import ExperimentStore
 from viral_futbol.runtime_policy import safe_exploit_percent
+from production.format_scheduler import decide as decide_formats
+from production.longform_runtime import last_activity as last_longform_activity, produce_once as produce_longform
 
 
 def db_path():
@@ -151,9 +153,25 @@ def publish_pending():
 
 
 def cycle():
-    try: performance=collect_performance(db_path())
+    path=db_path()
+    try: performance=collect_performance(path)
     except Exception as exc: performance={'ready':False,'collected':0,'error':type(exc).__name__}
     result={'performance':performance,'publish':publish_pending()}
+    enabled=os.getenv('BAMLOOP_LONGFORM_ENABLED',os.getenv('LONGFORM_ENABLED','false')).casefold() in {'1','true','yes','on'}
+    try: interval=float(os.getenv('BAMLOOP_LONGFORM_INTERVAL_HOURS',os.getenv('LONGFORM_INTERVAL_HOURS','24')))
+    except ValueError: interval=24.0
+    decision=decide_formats(last_longform_at=last_longform_activity(path,'bamloop'),longform_enabled=enabled,interval_hours=interval)
+    result['formats']={'shorts':decision.shorts,'longform':decision.longform,'reason':decision.reason}
+    if decision.longform:
+        try:
+            result['longform']=produce_longform(
+                channel='bamloop',db_path=path,
+                output_dir=os.getenv('BAMLOOP_LONGFORM_OUTPUT_DIR',str(Path(os.getenv('MEME_OUTPUT_DIR','storage/bamloop'))/'longform')),
+                voice=os.getenv('BAMLOOP_LONGFORM_VOICE','tr-TR-EmelNeural'))
+        except Exception as exc:
+            result['longform']={'deferred':True,'error':type(exc).__name__,'reason':'longform_production_failed'}
+    else:
+        result['longform']={'deferred':True,'reason':decision.reason}
     try: result['prepare']=prepare()
     except Exception as exc: result['prepare']={'error':type(exc).__name__}
     result['publish_after_prepare']=publish_pending()
