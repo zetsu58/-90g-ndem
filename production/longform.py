@@ -29,14 +29,22 @@ def plan(subject:str, *, channel:str, facts:list[str]|None=None, target_seconds:
     scale=target_seconds/sum(x["seconds"] for x in brief["sections"])
     scenes=[]; start=0.0
     motions=("push-in","pan-left","parallax","pull-out","pan-right")
-    for i,section in enumerate(brief["sections"]):
-        duration=round(section["seconds"]*scale,2)
-        fact=facts[i%len(facts)] if facts else subject
-        narration=f"{section['name'].replace('_',' ').title()}: {fact}"
-        scenes.append(LongScene(i,section["name"],round(start,2),duration,narration,
-                                f"{subject} {section['name'].replace('_',' ')}",motions[i%len(motions)],
-                                "crossfade" if i else "cut"))
-        start+=duration
+    scene_index=0
+    for section_index,section in enumerate(brief["sections"]):
+        section_duration=section["seconds"]*scale
+        # Long-form needs visual refreshes inside editorial sections. Split each
+        # section into bounded 12–24 second scenes instead of six static blocks.
+        parts=max(1,round(section_duration/18))
+        part_duration=section_duration/parts
+        for part in range(parts):
+            duration=round(part_duration,2)
+            fact=facts[(scene_index)%len(facts)] if facts else subject
+            narration=f"{section['name'].replace('_',' ').title()} {part+1}: {fact}"
+            scenes.append(LongScene(scene_index,section["name"],round(start,2),duration,narration,
+                                    f"{subject} {section['name'].replace('_',' ')} {part+1}",motions[scene_index%len(motions)],
+                                    "crossfade" if scene_index else "cut"))
+            start+=duration
+            scene_index+=1
     low,high=narration_budget(target_seconds)
     return {"id":hashlib.sha256(f"{channel}|{subject}".encode()).hexdigest()[:24],
             "channel":channel,"content_format":"video","subject":subject,

@@ -32,6 +32,34 @@ services:
         value: "3"
       - key: CHANNEL_TIMEZONE
         value: Europe/Istanbul
+      - key: MAX_VIDEOS_PER_DAY
+        value: "1"
+      - key: MIN_HOURS_BETWEEN_VIDEOS
+        value: "12"
+      - key: BAMLOOP_LONGFORM_ENABLED
+        value: "false"
+      - key: BAMLOOP_LONGFORM_INTERVAL_HOURS
+        value: "24"
+      - key: BAMLOOP_LONGFORM_OUTPUT_DIR
+        value: storage/bamloop/longform
+      - key: LONGFORM_MIN_EVIDENCE
+        value: "10"
+      - key: LONGFORM_MUSIC_ENABLED
+        value: "true"
+      - key: LONGFORM_RENDER_ONLY_WHEN_SLOT_READY
+        value: "true"
+      - key: PUBLISH_SLOT_GRACE_MINUTES
+        value: "30"
+      - key: LONGFORM_TTS_RATE
+        value: "+5%"
+      - key: REMOTION_LONGFORM_TIMEOUT_SECONDS
+        value: "900"
+      - key: LONGFORM_LLM_BASE_URL
+        sync: false
+      - key: LONGFORM_LLM_MODEL
+        sync: false
+      - key: LONGFORM_LLM_API_KEY
+        sync: false
       - key: PUBLISH_QUEUE_ENABLED
         value: "true"
       - key: SMART_PUBLISH_SCHEDULING

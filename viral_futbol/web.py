@@ -72,7 +72,7 @@ def public_status() -> dict:
                     error_type = 'QualityGate'
                 else:
                     error_type = 'UploadOrLedgerError'
-            publishing = {**queue.counts(), 'next_publish_slot': queue.next_slot(),
+            publishing = {**queue.counts(), 'next_short_slot': queue.next_slot(content_format='short'), 'next_video_slot': queue.next_slot(content_format='video'),
               'render_count':queue.db.execute("SELECT COUNT(*) FROM publish_queue WHERE channel='viral_futbol'").fetchone()[0],
               'upload_count':by_state.get('published',0), 'failure_count':by_state.get('failed',0)+by_state.get('quality_blocked',0),
               'last_upload_state':last_upload['upload_state'] if last_upload else None,
@@ -80,7 +80,7 @@ def public_status() -> dict:
               'last_uploaded_video_id':last_upload['youtube_video_id'] if last_upload and last_upload['upload_state']=='published' else None,
               'db_persistence_ready': persistent_render_path(settings.db_path)}
     except Exception:
-        publishing = {'queue_size': None, 'videos_today': None, 'next_publish_slot': None, 'db_persistence_ready': False}
+        publishing = {'queue_size': None, 'videos_today': None, 'next_short_slot': None, 'next_video_slot': None, 'db_persistence_ready': False}
     return {
         **dict(_state), **publishing, **AUTH_STATUS['viral_futbol'],
         'deploy_commit': os.getenv('RENDER_GIT_COMMIT') if re.fullmatch(r'[0-9a-f]{40}', os.getenv('RENDER_GIT_COMMIT','')) else None,
@@ -104,6 +104,8 @@ def public_status() -> dict:
             "github_ledger_required": ledger_required(),
             "github_ledger_ready": ledger_ready() if ledger_required() else False,
             "autostart_worker": os.getenv("NEWS_AUTOSTART_WORKER", "true").casefold() in {"1", "true", "yes", "on"},
+            "longform_enabled": os.getenv("VIRAL_LONGFORM_ENABLED",os.getenv("LONGFORM_ENABLED","false")).casefold() in {"1","true","yes","on"},
+            "longform_interval_hours": os.getenv("VIRAL_LONGFORM_INTERVAL_HOURS",os.getenv("LONGFORM_INTERVAL_HOURS","24")),
             "release_ready": (not settings.dry_run) and youtube.ready and publishing_storage_ready(settings.db_path) and (not ledger_required() or ledger_ready()),
             "db_persistent_path": settings.db_path.startswith("/data/"),
         },
