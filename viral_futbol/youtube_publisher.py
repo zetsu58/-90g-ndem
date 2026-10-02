@@ -147,6 +147,11 @@ def _validate_video(path:Path, content_format:str="short")->dict:
 def _metadata(job:dict)->tuple[str,str,list[str]]:
     language=str(job.get("language") or "tr")
     raw_title=str(job.get("title") or "Futbol gündeminde son dakika").strip()
+    if str(job.get("content_format") or "short")=="video":
+        title=raw_title[:100]
+        description=str(job.get("description") or f"{raw_title}. 90+ Gündem uzun format video.").strip()[:5000]
+        tags=[str(x)[:80] for x in (job.get("tags") or ["futbol"]) if str(x).strip()][:25]
+        return title,description,tags
     metadata=discovery_metadata(raw_title, language)
     return str(metadata["title"]), str(metadata["description"]), list(metadata["tags"])
 
@@ -210,7 +215,8 @@ def publish_ready(settings,limit:int=2)->dict:
             story_id=str(job['story_id'])
             queue.enqueue(story_id,'football',str(job['title']),story_id,str(job['output_url']),job)
         result.update(queue.counts())
-        result['next_publish_slot']=queue.next_slot()
+        result['next_short_slot']=queue.next_slot(content_format='short')
+        result['next_video_slot']=queue.next_slot(content_format='video')
         if not config.ready: return result
         if not publishing_storage_ready(str(settings.db_path)) or (ledger_required() and not ledger_ready()):
             result['ready']=False
@@ -289,6 +295,7 @@ def publish_ready(settings,limit:int=2)->dict:
                 # Avoid printing HTTP error bodies that might include credentials.
                 print(f'ViralFutbol YouTube upload failed ({story_id}): {reason}',flush=True)
         result.update(queue.counts())
-        result['next_publish_slot']=queue.next_slot()
+        result['next_short_slot']=queue.next_slot(content_format='short')
+        result['next_video_slot']=queue.next_slot(content_format='video')
         result['status_counts']=manifests.counts()
     return result

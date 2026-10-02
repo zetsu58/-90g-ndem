@@ -59,50 +59,82 @@ class PublishQueue:
         pending = self.db.execute("SELECT COUNT(*) FROM publish_queue WHERE channel=? AND upload_state IN ('queued','failed','uploading','uncertain')", (self.channel,)).fetchone()[0]
         return {'videos_today': published, 'queue_size': pending}
 
-    def next_slot(self, now=None):
+    @staticmethod
+    def _format_of(row):
+        try:
+            metadata=json.loads(row["metadata"] or "{}")
+        except (TypeError,ValueError,json.JSONDecodeError):
+            metadata={}
+        return "video" if metadata.get("content_format")=="video" or row["content_type"]=="video" else "short"
+
+    def next_slot(self, now=None, content_format="short"):
         now = time.time() if now is None else now
         start, end = self._local_day(now)
-        pending_type_row = self.db.execute("SELECT content_type,metadata FROM publish_queue WHERE channel=? AND upload_state IN ('queued','failed') ORDER BY created_at LIMIT 1",(self.channel,)).fetchone()
-        is_longform = False
-        if pending_type_row:
-            try: is_longform = json.loads(pending_type_row['metadata']).get('content_format') == 'video'
-            except (TypeError,ValueError,json.JSONDecodeError): is_longform = pending_type_row['content_type'] == 'video'
+        is_longform = content_format == "video"
         max_daily = max(1, int(os.getenv('MAX_VIDEOS_PER_DAY','1') if is_longform else os.getenv('MAX_SHORTS_PER_DAY','5')))
         spacing = max(0, float(os.getenv('MIN_HOURS_BETWEEN_VIDEOS','12') if is_longform else os.getenv('MIN_HOURS_BETWEEN_SHORTS','3'))) * 3600
-        rows = self.db.execute("SELECT published_at,scheduled_at,upload_state FROM publish_queue WHERE channel=? AND (published_at>=? OR (upload_state IN ('uploading','uncertain') AND scheduled_at>=?)) ORDER BY COALESCE(published_at,scheduled_at)", (self.channel,start,start)).fetchall()
-        occupied = [float(row['published_at'] or row['scheduled_at']) for row in rows]
-        earliest = max(now, max(occupied, default=0)+spacing)
-        if len(occupied) >= max_daily: earliest = max(earliest, end)
-        # Configurable slots, default spread through the local daytime.
+        rows = self.db.execute(
+            "SELECT content_type,metadata,published_at,scheduled_at,upload_state FROM publish_queue "
+            "WHERE channel=? AND (published_at>=? OR (upload_state IN ('uploading','uncertain') AND scheduled_at>=?)) "
+            "ORDER BY COALESCE(published_at,scheduled_at)",
+            (self.channel,start,start),
+        ).fetchall()
+        same_format=[row for row in rows if self._format_of(row)==content_format]
+        occupied=[float(row['published_at'] or row['scheduled_at']) for row in same_format]
+        earliest=max(now,max(occupied,default=0)+spacing)
+        if len(occupied)>=max_daily:
+            earliest=max(earliest,end)
         if not direct_publish_enabled() and os.getenv('SMART_PUBLISH_SCHEDULING','true').lower() in {'1','true','yes'}:
-            slots = [int(x) for x in os.getenv('PUBLISH_HOURS','9,12,15,18,21').split(',') if x.strip().isdigit() and 0 <= int(x) <= 23]
+            slots=[int(x) for x in os.getenv('PUBLISH_HOURS','9,12,15,18,21').split(',') if x.strip().isdigit() and 0<=int(x)<=23]
             if slots:
-                zone = ZoneInfo(os.getenv('CHANNEL_TIMEZONE','Europe/Istanbul'))
-                day = datetime.fromtimestamp(earliest, zone).replace(hour=0,minute=0,second=0,microsecond=0)
+                zone=ZoneInfo(os.getenv('CHANNEL_TIMEZONE','Europe/Istanbul'))
+                day=datetime.fromtimestamp(earliest,zone).replace(hour=0,minute=0,second=0,microsecond=0)
+                try:
+                    grace=max(0,float(os.getenv('PUBLISH_SLOT_GRACE_MINUTES','30')))*60
+                except ValueError:
+                    grace=1800
                 for offset in range(3):
                     for hour in sorted(set(slots)):
-                        candidate = (day + timedelta(days=offset)).replace(hour=hour).timestamp()
-                        if candidate >= earliest: return candidate
+                        candidate=(day+timedelta(days=offset)).replace(hour=hour).timestamp()
+                        if candidate<=earliest<=candidate+grace:
+                            return earliest
+                        if candidate>=earliest:
+                            return candidate
         return earliest
 
     def claim(self, now=None, max_attempts=4):
-        if os.getenv('PUBLISH_QUEUE_ENABLED','true').lower() not in {'1','true','yes'}: return None
-        now = time.time() if now is None else now
+        if os.getenv('PUBLISH_QUEUE_ENABLED','true').lower() not in {'1','true','yes'}:
+            return None
+        now=time.time() if now is None else now
         self.db.execute('BEGIN IMMEDIATE')
         try:
-            # A crash may strand an upload. We cannot know if YouTube accepted it;
-            # quarantine the uncertain attempt instead of risking a duplicate.
-            self.db.execute("UPDATE publish_queue SET upload_state='uncertain',last_error='upload interrupted; reconcile YouTube before retry' WHERE channel=? AND upload_state='uploading' AND scheduled_at<?", (self.channel,now-1800))
-            slot = self.next_slot(now)
-            if slot > now + 1:
-                self.db.commit(); return None
-            row = self.db.execute("SELECT * FROM publish_queue WHERE channel=? AND upload_state IN ('queued','failed') AND attempts<? AND next_retry_at<=? ORDER BY created_at LIMIT 1", (self.channel,max_attempts,now)).fetchone()
+            self.db.execute(
+                "UPDATE publish_queue SET upload_state='uncertain',last_error='upload interrupted; reconcile YouTube before retry' "
+                "WHERE channel=? AND upload_state='uploading' AND scheduled_at<?",
+                (self.channel,now-1800),
+            )
+            candidates=self.db.execute(
+                "SELECT * FROM publish_queue WHERE channel=? AND upload_state IN ('queued','failed') "
+                "AND attempts<? AND next_retry_at<=? ORDER BY created_at LIMIT 24",
+                (self.channel,max_attempts,now),
+            ).fetchall()
+            row=None
+            for candidate in candidates:
+                content_format=self._format_of(candidate)
+                if self.next_slot(now,content_format)<=now+1:
+                    row=candidate
+                    break
             if row:
-                self.db.execute("UPDATE publish_queue SET upload_state='uploading', attempts=attempts+1, scheduled_at=?,last_error=NULL WHERE channel=? AND content_id=?", (now,self.channel,row['content_id']))
+                self.db.execute(
+                    "UPDATE publish_queue SET upload_state='uploading',attempts=attempts+1,scheduled_at=?,last_error=NULL "
+                    "WHERE channel=? AND content_id=?",
+                    (now,self.channel,row['content_id']),
+                )
             self.db.commit()
             return dict(row) if row else None
         except BaseException:
-            self.db.rollback(); raise
+            self.db.rollback()
+            raise
 
     def published(self, content_id, video_id, now=None):
         if not video_id: raise ValueError('YouTube video ID required')

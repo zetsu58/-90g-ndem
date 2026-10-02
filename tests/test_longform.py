@@ -7,7 +7,9 @@ class LongFormPlannerTests(unittest.TestCase):
         self.assertEqual(p["content_format"],"video")
         self.assertEqual(p["target_seconds"],210)
         self.assertEqual(round(sum(x["duration"] for x in p["scenes"])),210)
-        self.assertGreaterEqual(len(p["scenes"]),6)
+        self.assertGreaterEqual(len(p["scenes"]),8)
+        self.assertLessEqual(len(p["scenes"]),15)
+        self.assertTrue(all(12 <= x["duration"] <= 24 for x in p["scenes"]))
 
     def test_explainer_plan(self):
         p=plan("Bir teknoloji nasıl çalışır?",channel="bamloop")

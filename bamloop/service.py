@@ -46,7 +46,7 @@ def worker() -> None:
             result = cycle()
             _set(status="idle", running=False, last_success=int(time.time()), last_result=result,
                 last_content_type=(result.get('prepare') or {}).get('content_type'),
-                render_count=STATE['render_count'] + int(bool((result.get('prepare') or {}).get('queued'))),
+                render_count=STATE['render_count'] + int(bool((result.get('prepare') or {}).get('queued'))) + int(bool((result.get('longform') or {}).get('queued'))),
                 upload_count=STATE['upload_count'] + sum(int((result.get(k) or {}).get('uploaded',0)) for k in ('publish','publish_after_prepare')),
                 failure_count=STATE['failure_count'] + sum(int((result.get(k) or {}).get('upload_failed',0)) for k in ('publish','publish_after_prepare')),
                 last_uploaded_video_id=next(((result.get(k) or {}).get('video_id') for k in ('publish_after_prepare','publish') if (result.get(k) or {}).get('video_id')), STATE['last_uploaded_video_id']),
@@ -124,7 +124,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 with PublishQueue(db_path(),'bamloop') as queue:
                     snapshot.update(queue.counts())
-                    snapshot['next_publish_slot']=queue.next_slot()
+                    snapshot['next_short_slot']=queue.next_slot(content_format='short')
+                    snapshot['next_video_slot']=queue.next_slot(content_format='video')
                     snapshot['daily_ai_spend']=0.0
                     snapshot['daily_ai_budget']=float(os.getenv('BAMLOOP_DAILY_AI_BUDGET_USD','0'))
                     snapshot['ai_provider']=os.getenv('BAMLOOP_STORY_PROVIDER','local')
@@ -140,6 +141,8 @@ class Handler(BaseHTTPRequestHandler):
                     if snapshot.get('last_upload_error_type') == 'RefreshError':
                         snapshot['publishing_ready'] = False
                     snapshot['persistence_blocked']=snapshot['youtube_enabled'] and not publishing_storage_ready(db_path())
+                    snapshot['longform_enabled']=os.getenv('BAMLOOP_LONGFORM_ENABLED',os.getenv('LONGFORM_ENABLED','false')).casefold() in {'1','true','yes','on'}
+                    snapshot['longform_interval_hours']=os.getenv('BAMLOOP_LONGFORM_INTERVAL_HOURS',os.getenv('LONGFORM_INTERVAL_HOURS','24'))
             except Exception:
                 snapshot['db_persistence_ready']=False
                 snapshot['publishing_ready']=False

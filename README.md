@@ -335,3 +335,58 @@ Bu kriterler sağlanmadan yalnız health/deploy başarısı production yayın ba
 - Fixture/test videolarını production kanalına göndermeyin.
 - Ledger kayıtlarını reconciliation yapmadan silmeyin.
 - Telif hakkı belirsiz maç yayını kliplerini otomatik olarak kullanmayın.
+
+
+## Multi-format long-form motoru
+
+ViralFutbol ve BAMLOOP ortak `production/` çekirdeği üzerinden iki format çalıştırabilir:
+
+- `short`: 9:16, 12–70 saniye.
+- `video`: 16:9, 150–300 saniye; varsayılan hedef 210 saniye.
+
+Long-form üretim zinciri:
+
+```text
+cadence + publish-slot gate
+  -> konu rotasyonu / cooldown
+  -> Wikidata + Google News evidence
+  -> fact manifest (minimum kanıt + kaynak doğrulaması)
+  -> grounded narration (opsiyonel OpenAI-compatible LLM, güvenli fallback)
+  -> 8–15 zamanlanmış sahne
+  -> Wikimedia Commons görseli / doğrulanmış editoryal fallback kartı
+  -> Edge TTS / espeak-ng fallback
+  -> Remotion timed-scene render / low-memory FFmpeg fallback
+  -> 16:9 H.264/AAC quality gate
+  -> format-aware publish queue
+  -> OAuth + expected-channel preflight
+  -> resumable YouTube upload
+  -> public verification + analytics
+```
+
+Long-form render yalnız video yayın slotu hazır olduğunda başlatılır. Shorts ve normal videoların günlük limitleri ve minimum yayın aralıkları birbirinden bağımsızdır; bir formatın dolu kotası diğer formatı bloke etmez.
+
+Temel environment ayarları:
+
+```env
+VIRAL_LONGFORM_ENABLED=false
+BAMLOOP_LONGFORM_ENABLED=false
+VIRAL_LONGFORM_INTERVAL_HOURS=24
+BAMLOOP_LONGFORM_INTERVAL_HOURS=24
+MAX_VIDEOS_PER_DAY=1
+MIN_HOURS_BETWEEN_VIDEOS=12
+LONGFORM_MIN_EVIDENCE=10
+LONGFORM_RENDER_ONLY_WHEN_SLOT_READY=true
+LONGFORM_MUSIC_ENABLED=true
+LONGFORM_TTS_RATE=+5%
+REMOTION_LONGFORM_TIMEOUT_SECONDS=900
+```
+
+Opsiyonel OpenAI-compatible script endpoint:
+
+```env
+LONGFORM_LLM_BASE_URL=
+LONGFORM_LLM_MODEL=
+LONGFORM_LLM_API_KEY=
+```
+
+Bu değerler yoksa long-form sistemi doğrulanmış olgulardan deterministic grounded fallback narration üretir; LLM bağlantısının olmaması worker'ı durdurmaz. Feature flag varsayılan olarak kapalıdır; ilk production smoke/QC sonrası kanal bazında açılmalıdır.
