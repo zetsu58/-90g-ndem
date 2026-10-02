@@ -60,6 +60,10 @@ services:
         value: "10"
       - key: LONGFORM_MUSIC_ENABLED
         value: "true"
+      - key: LONGFORM_RENDER_ONLY_WHEN_SLOT_READY
+        value: "true"
+      - key: PUBLISH_SLOT_GRACE_MINUTES
+        value: "30"
       - key: LONGFORM_TTS_RATE
         value: "+5%"
       - key: REMOTION_LONGFORM_TIMEOUT_SECONDS
