@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from production.queue import PublishQueue, publishing_storage_ready
 from production.github_ledger import GitHubLedger, required as ledger_required, ready as ledger_ready, LedgerError, LedgerCapacity
-from viral_futbol.youtube_publisher import _validate_short
+from viral_futbol.youtube_publisher import _validate_short, _validate_video
 from .engine import build_video, choose_idea
 from .story import create_story_video
 from .youtube import upload, credentials_ready, refresh_credentials
@@ -96,7 +96,8 @@ def publish_pending():
         import json
         video_id = None
         try:
-            _validate_short(Path(job['video_path']))
+            job_metadata=json.loads(job['metadata'])
+            _validate_video(Path(job['video_path']),str(job_metadata.get('content_format') or 'short'))
         except (ValueError,OSError) as exc:
             queue.reject(job['content_id'],str(exc))
             return {'uploaded':0,'quality_blocked':1,**queue.counts()}
@@ -119,7 +120,7 @@ def publish_pending():
                 except LedgerError:
                     queue.failed(job['content_id'],'ledger_unavailable_or_limit')
                     return {'uploaded':0,'ledger_blocked':True,**queue.counts()}
-            video_id=upload(Path(job['video_path']),json.loads(job['metadata']),credentials=credentials)
+            video_id=upload(Path(job['video_path']),job_metadata,credentials=credentials)
             if ledger:
                 try: ledger.published('bamloop',job['content_id'],video_id)
                 except LedgerError:
