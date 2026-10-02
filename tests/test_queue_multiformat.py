@@ -57,5 +57,16 @@ class MultiFormatQueueTests(unittest.TestCase):
                 self.assertIsNotNone(claimed)
                 self.assertEqual(claimed["content_id"],"ready-video")
 
+    def test_smart_slot_grace_does_not_skip_just_missed_slot(self):
+        with tempfile.TemporaryDirectory() as td, patch.dict(os.environ,{
+            "PUBLISH_DIRECT_ENABLED":"false","SMART_PUBLISH_SCHEDULING":"true",
+            "PUBLISH_HOURS":"12","PUBLISH_SLOT_GRACE_MINUTES":"30",
+            "CHANNEL_TIMEZONE":"Europe/Istanbul"},clear=False):
+            zone=__import__("zoneinfo").ZoneInfo("Europe/Istanbul")
+            from datetime import datetime
+            now=datetime(2026,10,2,12,10,tzinfo=zone).timestamp()
+            with self.make(td) as q:
+                self.assertLessEqual(q.next_slot(now,"short"),now+1)
+
 if __name__=="__main__":
     unittest.main()
