@@ -7,8 +7,8 @@ from production.longform_script import build_script
 from production.longform import plan
 from production.longform_metadata import longform_metadata
 
-def prepare_contract(*,subject:str,channel:str,evidence:list[Evidence],kind:str|None=None,target_seconds:int=210)->dict:
-    manifest=build_fact_manifest(subject,evidence)
+def prepare_contract(*,subject:str,channel:str,evidence:list[Evidence],kind:str|None=None,target_seconds:int=210,min_claims:int=5)->dict:
+    manifest=build_fact_manifest(subject,evidence,min_claims=min_claims)
     script=build_script(subject,manifest,target_seconds)
     editorial=plan(subject,channel=channel,facts=script["verified_claims"],target_seconds=target_seconds)
     resolved=kind or ("football_story" if channel=="viral_futbol" else "explainer")
