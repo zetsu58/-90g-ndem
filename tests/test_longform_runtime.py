@@ -21,7 +21,7 @@ class LongFormRuntimeTests(unittest.TestCase):
         Path(output).write_bytes(b"x"*120000)
         return {"renderer":"mock","quality":{"format":"video","duration":210}}
     def test_viral_runtime_queues_file_uri_video(self):
-        with tempfile.TemporaryDirectory() as td, patch("production.longform_runtime.research",return_value=self.evidence()), patch("production.longform_runtime.generate_narration",return_value={"text":"x "*500,"word_count":500,"provider":"mock"}), patch("production.longform_runtime.build_media",side_effect=self.fake_media), patch("production.longform_runtime.synthesize",side_effect=self.fake_tts), patch("production.longform_runtime.instrumental",side_effect=self.fake_music), patch("production.longform_runtime.render_contract",side_effect=self.fake_render):
+        with tempfile.TemporaryDirectory() as td, patch.dict("os.environ",{"PUBLISH_DIRECT_ENABLED":"true"},clear=False), patch("production.longform_runtime.research",return_value=self.evidence()), patch("production.longform_runtime.generate_narration",return_value={"text":"x "*500,"word_count":500,"provider":"mock"}), patch("production.longform_runtime.build_media",side_effect=self.fake_media), patch("production.longform_runtime.synthesize",side_effect=self.fake_tts), patch("production.longform_runtime.instrumental",side_effect=self.fake_music), patch("production.longform_runtime.render_contract",side_effect=self.fake_render):
             db=str(Path(td)/"v.sqlite3")
             result=produce_once(channel="viral_futbol",db_path=db,output_dir=str(Path(td)/"out"))
             self.assertTrue(result["queued"])
