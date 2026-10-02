@@ -90,31 +90,33 @@ def produce_once(*,channel:str,db_path:str,output_dir:str,voice:str="tr-TR-EmelN
                               min_claims=max(8,int(os.getenv("LONGFORM_MIN_EVIDENCE","10"))))
     narration=generate_narration(subject,contract["script"])
     audio=directory/f"{contract['content_id']}-voice.mp3"
-    synthesize(narration["text"],audio,voice)
-    frames,credits=build_media(subject=subject,scenes=contract["editorial"]["scenes"],
-                               claims=contract["script"]["verified_claims"],output_dir=directory,
-                               content_id=contract["content_id"],limit=12)
-    music=None
-    if os.getenv("LONGFORM_MUSIC_ENABLED","true").casefold() in {"1","true","yes","on"}:
-        music=instrumental(directory/f"{contract['content_id']}-bed.wav")
-    ready=attach_assets(contract,media=frames,audio=audio,music=music)
-    output=directory/f"{contract['content_id']}.mp4"
-    rendered=render_contract(ready,output,force=force_remotion)
-    metadata=dict(contract["metadata"])
-    metadata["word_count"]=narration["word_count"]
-    metadata["script_provider"]=narration["provider"]
-    metadata["renderer"]=rendered["renderer"]
-    metadata["description"]=_description(str(metadata.get("description") or ""),evidence,credits)
-    metadata["source_count"]=len({item.source.casefold() for item in evidence})
-    video_path=output.resolve().as_uri() if channel=="viral_futbol" else str(output.resolve())
-    with PublishQueue(db_path,channel) as queue:
-        queued=queue.enqueue(contract["content_id"],"video",subject,contract["content_hash"],video_path,metadata,
-                             provider="wikidata+commons")
-    for frame in frames:
-        frame.unlink(missing_ok=True)
-    audio.unlink(missing_ok=True)
-    if music:
-        Path(music).unlink(missing_ok=True)
-    return {"queued":queued,"content_id":contract["content_id"],"subject":subject,"kind":kind,
-            "video":str(output),"word_count":narration["word_count"],"script_provider":narration["provider"],
-            "renderer":rendered["renderer"],"quality":rendered["quality"]}
+    frames=[];credits=[];music=None
+    try:
+        synthesize(narration["text"],audio,voice)
+        frames,credits=build_media(subject=subject,scenes=contract["editorial"]["scenes"],
+                                   claims=contract["script"]["verified_claims"],output_dir=directory,
+                                   content_id=contract["content_id"],limit=12)
+        if os.getenv("LONGFORM_MUSIC_ENABLED","true").casefold() in {"1","true","yes","on"}:
+            music=instrumental(directory/f"{contract['content_id']}-bed.wav")
+        ready=attach_assets(contract,media=frames,audio=audio,music=music)
+        output=directory/f"{contract['content_id']}.mp4"
+        rendered=render_contract(ready,output,force=force_remotion)
+        metadata=dict(contract["metadata"])
+        metadata["word_count"]=narration["word_count"]
+        metadata["script_provider"]=narration["provider"]
+        metadata["renderer"]=rendered["renderer"]
+        metadata["description"]=_description(str(metadata.get("description") or ""),evidence,credits)
+        metadata["source_count"]=len({item.source.casefold() for item in evidence})
+        video_path=output.resolve().as_uri() if channel=="viral_futbol" else str(output.resolve())
+        with PublishQueue(db_path,channel) as queue:
+            queued=queue.enqueue(contract["content_id"],"video",subject,contract["content_hash"],video_path,metadata,
+                                 provider="wikidata+commons")
+        return {"queued":queued,"content_id":contract["content_id"],"subject":subject,"kind":kind,
+                "video":str(output),"word_count":narration["word_count"],"script_provider":narration["provider"],
+                "renderer":rendered["renderer"],"quality":rendered["quality"]}
+    finally:
+        for frame in frames:
+            Path(frame).unlink(missing_ok=True)
+        audio.unlink(missing_ok=True)
+        if music:
+            Path(music).unlink(missing_ok=True)
