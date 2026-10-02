@@ -163,13 +163,19 @@ def cycle():
     decision=decide_formats(last_longform_at=last_longform_activity(path,'bamloop'),longform_enabled=enabled,interval_hours=interval)
     result['formats']={'shorts':decision.shorts,'longform':decision.longform,'reason':decision.reason}
     if decision.longform:
-        try:
-            result['longform']=produce_longform(
-                channel='bamloop',db_path=path,
-                output_dir=os.getenv('BAMLOOP_LONGFORM_OUTPUT_DIR',str(Path(os.getenv('MEME_OUTPUT_DIR','storage/bamloop'))/'longform')),
-                voice=os.getenv('BAMLOOP_LONGFORM_VOICE','tr-TR-EmelNeural'))
-        except Exception as exc:
-            result['longform']={'deferred':True,'error':type(exc).__name__,'reason':'longform_production_failed'}
+        if not credentials_ready():
+            result['longform']={'deferred':True,'reason':'youtube_credentials_not_ready'}
+        else:
+            try:
+                credentials=refresh_credentials()
+                from bamloop.youtube import verify_channel
+                verify_channel(credentials)
+                result['longform']=produce_longform(
+                    channel='bamloop',db_path=path,
+                    output_dir=os.getenv('BAMLOOP_LONGFORM_OUTPUT_DIR',str(Path(os.getenv('MEME_OUTPUT_DIR','storage/bamloop'))/'longform')),
+                    voice=os.getenv('BAMLOOP_LONGFORM_VOICE','tr-TR-EmelNeural'))
+            except Exception as exc:
+                result['longform']={'deferred':True,'error':type(exc).__name__,'reason':'longform_preflight_or_production_failed'}
     else:
         result['longform']={'deferred':True,'reason':decision.reason}
     try: result['prepare']=prepare()
