@@ -295,6 +295,7 @@ def publish_ready(settings,limit:int=2)->dict:
                 # Avoid printing HTTP error bodies that might include credentials.
                 print(f'ViralFutbol YouTube upload failed ({story_id}): {reason}',flush=True)
         result.update(queue.counts())
-        result['next_publish_slot']=queue.next_slot()
+        result['next_short_slot']=queue.next_slot(content_format='short')
+        result['next_video_slot']=queue.next_slot(content_format='video')
         result['status_counts']=manifests.counts()
     return result
