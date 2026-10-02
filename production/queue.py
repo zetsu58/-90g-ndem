@@ -89,9 +89,15 @@ class PublishQueue:
             if slots:
                 zone=ZoneInfo(os.getenv('CHANNEL_TIMEZONE','Europe/Istanbul'))
                 day=datetime.fromtimestamp(earliest,zone).replace(hour=0,minute=0,second=0,microsecond=0)
+                try:
+                    grace=max(0,float(os.getenv('PUBLISH_SLOT_GRACE_MINUTES','30')))*60
+                except ValueError:
+                    grace=1800
                 for offset in range(3):
                     for hour in sorted(set(slots)):
                         candidate=(day+timedelta(days=offset)).replace(hour=hour).timestamp()
+                        if candidate<=earliest<=candidate+grace:
+                            return earliest
                         if candidate>=earliest:
                             return candidate
         return earliest
