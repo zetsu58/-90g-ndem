@@ -33,7 +33,7 @@ def _llm(prompt:str,claims:list[str],low:int,high:int)->str|None:
         print(f"Longform LLM deferred: {type(exc).__name__}",flush=True)
         return None
     count=len(_words(text))
-    if count < int(low*0.85) or count > int(high*1.10) or not _supported_numbers(text,claims):
+    if count < low or count > int(high*1.10) or not _supported_numbers(text,claims):
         print("Longform LLM output rejected by grounding/length gate",flush=True)
         return None
     return text
@@ -82,6 +82,6 @@ def generate_narration(subject:str,script_contract:dict)->dict:
     if not text:
         text=fallback_narration(subject,claims,low,high)
     count=len(_words(text))
-    if count < int(low*0.80) or not _supported_numbers(text,claims):
+    if count < low or not _supported_numbers(text,claims):
         raise ValueError("narration_grounding_gate_failed")
     return {"text":text,"word_count":count,"provider":provider}
