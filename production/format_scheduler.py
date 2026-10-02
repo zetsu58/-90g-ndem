@@ -8,12 +8,13 @@ class WorkDecision:
     longform:bool
     reason:str
 
-def decide(now=None,last_longform_at=None,longform_enabled=None):
+def decide(now=None,last_longform_at=None,longform_enabled=None,interval_hours=None):
     now=time.time() if now is None else now
     enabled=(os.getenv("LONGFORM_ENABLED","false").lower() in ("1","true","yes","on")) if longform_enabled is None else longform_enabled
     if not enabled:
         return WorkDecision(True,False,"longform_disabled")
-    interval=max(6,float(os.getenv("LONGFORM_INTERVAL_HOURS","24")))*3600
+    raw_interval=os.getenv("LONGFORM_INTERVAL_HOURS","24") if interval_hours is None else interval_hours
+    interval=max(6,float(raw_interval))*3600
     due=last_longform_at is None or now-last_longform_at>=interval
     return WorkDecision(True,due,"longform_due" if due else "longform_not_due")
 
