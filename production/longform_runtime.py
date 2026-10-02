@@ -75,6 +75,12 @@ def _description(base:str,evidence:list,credits:list[dict])->str:
 
 def produce_once(*,channel:str,db_path:str,output_dir:str,voice:str="tr-TR-EmelNeural",force_remotion:bool=False)->dict:
     directory=Path(output_dir);directory.mkdir(parents=True,exist_ok=True)
+    now=time.time()
+    if os.getenv("LONGFORM_RENDER_ONLY_WHEN_SLOT_READY","true").casefold() in {"1","true","yes","on"}:
+        with PublishQueue(db_path,channel) as slot_queue:
+            next_slot=slot_queue.next_slot(now=now,content_format="video")
+        if next_slot>now+60:
+            return {"queued":False,"deferred":True,"reason":"video_publish_slot_not_ready","next_video_slot":next_slot}
     recent=recent_longforms(db_path,channel,100)
     sequence=len(recent)
     kind=channel_kind(channel,sequence)
