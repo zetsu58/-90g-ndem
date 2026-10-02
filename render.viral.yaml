@@ -46,6 +46,30 @@ services:
         value: "3"
       - key: CHANNEL_TIMEZONE
         value: Europe/Istanbul
+      - key: MAX_VIDEOS_PER_DAY
+        value: "1"
+      - key: MIN_HOURS_BETWEEN_VIDEOS
+        value: "12"
+      - key: VIRAL_LONGFORM_ENABLED
+        value: "false"
+      - key: VIRAL_LONGFORM_INTERVAL_HOURS
+        value: "24"
+      - key: VIRAL_LONGFORM_OUTPUT_DIR
+        value: storage/viral_longform
+      - key: LONGFORM_MIN_EVIDENCE
+        value: "10"
+      - key: LONGFORM_MUSIC_ENABLED
+        value: "true"
+      - key: LONGFORM_TTS_RATE
+        value: "+5%"
+      - key: REMOTION_LONGFORM_TIMEOUT_SECONDS
+        value: "900"
+      - key: LONGFORM_LLM_BASE_URL
+        sync: false
+      - key: LONGFORM_LLM_MODEL
+        sync: false
+      - key: LONGFORM_LLM_API_KEY
+        sync: false
       - key: PUBLISH_QUEUE_ENABLED
         value: "true"
       - key: SMART_PUBLISH_SCHEDULING
