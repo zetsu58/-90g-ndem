@@ -28,7 +28,7 @@ export const ShortVideo:React.FC<ShortProps>=(p)=>{
     <div style={{position:'absolute',top:long?35:70,left:55,right:55,fontSize:long?24:32,fontWeight:900}}>{p.kind==='football'?'90+ GÜNDEM':'BAMLOOP'}</div>
     <div style={{position:'absolute',left:55,right:55,bottom:long?110:260,fontSize:long?42:68,fontWeight:900,lineHeight:1.04,textShadow:'0 4px 18px #000',whiteSpace:'pre-line'}}>{caption}</div>
     {p.audio&&<Audio src={staticFile(p.audio)}/>}
-    {p.music&&<Audio src={staticFile(p.music)} volume={0.18}/>}
+    {p.music&&<Audio src={staticFile(p.music)} volume={0.18} loop={long}/>}
     <Sequence from={0}><div style={{position:'absolute',bottom:long?38:120,left:55,fontSize:long?20:28,fontWeight:800}}>{long?(p.kind==='football'?'FUTBOL • DOSYA':'BİLGİ • DOSYA'):(p.kind==='football'?'FUTBOL • SON DAKİKA':'SHORTS • VIRAL')}</div></Sequence>
   </AbsoluteFill>;
 };
