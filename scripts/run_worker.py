@@ -12,6 +12,7 @@ from viral_futbol.x_newsroom import fetch_x_newsroom
 from viral_futbol.x_pipeline import publish_verified_cluster
 from viral_futbol.trend_pipeline import trend_gate
 from production.format_scheduler import decide as decide_formats
+from production.longform_runtime import last_activity as last_longform_activity, produce_once as produce_longform
 
 
 def _x_daily_limit() -> int:
@@ -28,7 +29,10 @@ def cycle(progress=None) -> dict:
             progress(name)
     settings = Settings()
     stage("trend_gate")
-    format_decision = decide_formats(last_longform_at=None)
+    longform_enabled=os.getenv('VIRAL_LONGFORM_ENABLED',os.getenv('LONGFORM_ENABLED','false')).casefold() in {'1','true','yes','on'}
+    try: longform_interval=float(os.getenv('VIRAL_LONGFORM_INTERVAL_HOURS',os.getenv('LONGFORM_INTERVAL_HOURS','24')))
+    except ValueError: longform_interval=24.0
+    format_decision = decide_formats(last_longform_at=last_longform_activity(settings.db_path,'viral_futbol'),longform_enabled=longform_enabled,interval_hours=longform_interval)
     result = {"formats": {"shorts": format_decision.shorts, "longform": format_decision.longform, "reason": format_decision.reason}, "trend_gate": None, "x": {"verified": 0, "published": 0, "duplicates": 0, "budget_blocked": 0, "gate_blocked": 0, "failed": 0}, "shorts": None, "longform": None, "youtube": None, "performance": None}
 
     try:
@@ -85,9 +89,18 @@ def cycle(progress=None) -> dict:
         result["shorts"] = {"error": str(exc)}
         print(f"ViralFutbol Shorts V2 scan deferred: {exc}", flush=True)
 
-    stage("longform_gate")
+    stage("longform")
     if format_decision.longform:
-        result["longform"] = {"deferred": True, "reason": "producer_not_wired", "safe": True}
+        try:
+            result["longform"] = produce_longform(
+                channel="viral_futbol",
+                db_path=settings.db_path,
+                output_dir=os.getenv("VIRAL_LONGFORM_OUTPUT_DIR","storage/viral_longform"),
+                voice=settings.voice_name,
+            )
+        except Exception as exc:
+            result["longform"] = {"deferred": True, "error": type(exc).__name__, "reason": "longform_production_failed"}
+            print(f"ViralFutbol long-form deferred: {type(exc).__name__}", flush=True)
     else:
         result["longform"] = {"deferred": True, "reason": format_decision.reason}
 
