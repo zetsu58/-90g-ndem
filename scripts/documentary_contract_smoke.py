@@ -4,6 +4,7 @@ from production.documentary_media import visual_beats
 from production.timed_tts import _approximate,_pages
 from production.documentary_post import inspect_documentary
 from production.longform_renderer import render_contract
+import subprocess
 
 def main():
     facts=[f"Doğrulanmış olgu {i}" for i in range(12)]
@@ -20,6 +21,11 @@ def main():
     assert pages and all(1<=len(x["text"].split())<=7 for x in pages)
     assert callable(inspect_documentary)
     assert callable(render_contract)
+    filters=subprocess.run(["ffmpeg","-hide_banner","-filters"],capture_output=True,text=True,check=True).stdout
+    encoders=subprocess.run(["ffmpeg","-hide_banner","-encoders"],capture_output=True,text=True,check=True).stdout
+    assert "loudnorm" in filters, "ffmpeg loudnorm missing"
+    assert "subtitles" in filters, "ffmpeg subtitles/libass missing"
+    assert "libx264" in encoders, "ffmpeg libx264 missing"
     print("documentary_contract_smoke=ok")
 
 if __name__=="__main__":
