@@ -3,7 +3,7 @@ from production.longform import plan
 from production.documentary_media import visual_beats, _normalize_archive_video
 from production.timed_tts import _approximate,_pages
 from production.documentary_post import inspect_documentary, master_audio
-from production.longform_renderer import render_contract
+from production.longform_renderer import render_contract, low_memory_ffmpeg_enabled
 import os,subprocess,tempfile
 from pathlib import Path
 from scripts.run_worker import _force_pair_pending,_mark_force_pair_complete,_short_generated
@@ -23,6 +23,15 @@ def main():
     assert pages and all(1<=len(x["text"].split())<=7 for x in pages)
     assert callable(inspect_documentary)
     assert callable(render_contract)
+    previous_renderer=os.environ.get("LONGFORM_FORCE_FFMPEG")
+    os.environ["LONGFORM_FORCE_FFMPEG"]="true"
+    try:
+        assert low_memory_ffmpeg_enabled()
+    finally:
+        if previous_renderer is None:
+            os.environ.pop("LONGFORM_FORCE_FFMPEG",None)
+        else:
+            os.environ["LONGFORM_FORCE_FFMPEG"]=previous_renderer
     with tempfile.TemporaryDirectory(prefix="pair-smoke-") as pair_td:
         pair_db=str(Path(pair_td)/"pair.sqlite3")
         previous=os.environ.get("VIRAL_FORCE_PAIR_TOKEN")
