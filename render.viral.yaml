@@ -61,7 +61,7 @@ services:
       - key: LONGFORM_MIN_REAL_MEDIA
         value: "8"
       - key: LONGFORM_MIN_VIDEO_BROLL
-        value: "2"
+        value: "0"
       - key: LONGFORM_MEDIA_TARGET
         value: "12"
       - key: LONGFORM_VISUAL_BEAT_SECONDS
