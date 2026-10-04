@@ -75,6 +75,28 @@ class RelevantMediaTests(unittest.TestCase):
                     sources=[],language="tr",voice_name="tr-TR-AhmetNeural",output_dir=td)
             speech.assert_not_called()
 
+    def test_existing_text_only_short_is_rejected_before_oauth(self):
+        from viral_futbol.config import Settings
+        from viral_futbol.service import Store
+        from viral_futbol.youtube_publisher import PublicationStore, publish_ready
+        import os
+        with tempfile.TemporaryDirectory() as td:
+            db_path = str(Path(td)/"state.db")
+            with patch.dict(os.environ,{"NEWS_DB_PATH":db_path,"PUBLISH_DIRECT_ENABLED":"true",
+                    "YOUTUBE_ENABLED":"true","YOUTUBE_CLIENT_ID":"fixture",
+                    "YOUTUBE_CLIENT_SECRET":"fixture","YOUTUBE_REFRESH_TOKEN":"fixture"}):
+                with Store(db_path) as store:
+                    store.reserve("old-card","tr",max_attempts=3,stale_seconds=60)
+                    store.mark_complete("old-card",(Path(td)/"old-card.mp4").as_uri())
+                with PublicationStore(db_path) as manifests:
+                    manifests.remember("old-card","Arda Güler", "tr", [])
+                with patch.object(youtube_publisher,"_download"), \
+                     patch.object(youtube_publisher,"_validate_video",return_value={"duration":30}), \
+                     patch.object(youtube_publisher,"_refresh_credentials") as refresh:
+                    result=publish_ready(Settings(db_path=db_path),limit=1)
+                self.assertEqual(result["quality_blocked"],1)
+                refresh.assert_not_called()
+
     def test_short_description_carries_commons_attribution(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); video=root/"story.mp4";video.write_bytes(b"mp4")
