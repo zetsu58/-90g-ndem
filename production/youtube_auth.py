@@ -54,7 +54,12 @@ def authorized_client(credentials):
     from google_auth_httplib2 import AuthorizedHttp
     from googleapiclient.discovery import build
 
-    return build("youtube", "v3", http=AuthorizedHttp(credentials, http=httplib2.Http(timeout=60)), cache_discovery=False)
+    transport = httplib2.Http(timeout=60)
+    # Resumable uploads return 308 Resume Incomplete without a Location header.
+    # googleapiclient handles that response and advances the byte range, but
+    # httplib2 otherwise tries to follow it as a redirect and raises first.
+    transport.redirect_codes = transport.redirect_codes - {308}
+    return build("youtube", "v3", http=AuthorizedHttp(credentials, http=transport), cache_discovery=False)
 
 
 def channel_preflight(credentials, expected_id: str) -> dict[str, str]:
