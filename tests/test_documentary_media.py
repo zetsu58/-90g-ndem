@@ -50,6 +50,28 @@ class DocumentaryMediaTests(unittest.TestCase):
         self.assertEqual(report["text_cards"],0)
         self.assertEqual(report["videos"],0)
 
+    def test_verified_club_stadiums_fill_sparse_player_archive(self):
+        def photo(index):
+            return {"url":f"https://example.test/{index}.jpg","title":str(index),"source":"Wikimedia Commons","license":"CC BY","artist":"","page":""}
+        def commons(query,subject,limit):
+            if subject=="Örnek Futbolcu": return [photo("player")]
+            if subject=="Fenerbahçe": return [photo(f"fener-{i}") for i in range(4)]
+            if subject=="Real Madrid": return [photo(f"madrid-{i}") for i in range(4)]
+            return []
+        fingerprints=iter([f"distinct-{i}" for i in range(30)])
+        with tempfile.TemporaryDirectory() as td, \
+             patch.dict("os.environ",{"LONGFORM_MIN_REAL_MEDIA":"8","LONGFORM_MIN_VIDEO_BROLL":"0","LONGFORM_MIN_SUBJECT_IMAGES":"1"},clear=False), \
+             patch("production.documentary_media._commons",side_effect=commons), \
+             patch("production.documentary_media._commons_video",return_value=[]), \
+             patch("production.documentary_media._pexels",return_value=[]), \
+             patch("production.documentary_media._download",side_effect=lambda url,path,max_bytes: Path(path).write_bytes(b"raw")), \
+             patch("production.documentary_media._clean_image",side_effect=lambda src,dst: Path(dst).write_bytes(b"image")), \
+             patch("production.documentary_media._image_fingerprint",side_effect=lambda path:next(fingerprints)):
+            report=build_documentary_media(subject="Örnek Futbolcu",scenes=self.scenes(),claims=["Örnek Futbolcu: Fenerbahçe", "Örnek Futbolcu: Real Madrid"],output_dir=Path(td),content_id="abc",channel="viral_futbol",target_assets=12)["report"]
+        self.assertGreaterEqual(report["real_media"],8)
+        self.assertEqual(report["subject_images"],1)
+        self.assertEqual(report["text_cards"],0)
+
     def test_motion_broll_gate_rejects_photo_only_documentary(self):
         items=[{"url":f"https://example.test/{i}.jpg","title":"Örnek Futbolcu","source":"Wikimedia Commons","license":"CC BY","artist":"","page":""} for i in range(10)]
         def fake_download(url,path,max_bytes):
@@ -69,3 +91,4 @@ class DocumentaryMediaTests(unittest.TestCase):
                 build_documentary_media(subject="Örnek Futbolcu",scenes=self.scenes(),claims=["Doğrulanmış olgu"],output_dir=Path(td),content_id="abc",channel="viral_futbol",target_assets=12)
 
 if __name__=="__main__": unittest.main()
+
