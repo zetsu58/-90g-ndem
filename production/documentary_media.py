@@ -266,16 +266,25 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
         for item in rows:
             if not item["url"] or item["url"] in urls or video_count>=min_video:
                 continue
-            suffix=".webm" if "webm" in str(item.get("mime") or "") else ".mp4"
-            final=output_dir/f"{content_id}-archive-{len(media)}{suffix}"
+            raw=output_dir/f"{content_id}-archive-raw-{len(media)}"
+            final=output_dir/f"{content_id}-archive-{len(media)}.mp4"
             try:
-                _download(item["url"],final,48*1024*1024)
+                _download(item["url"],raw,48*1024*1024)
                 probe=subprocess.run(["ffprobe","-v","error","-show_entries","stream=codec_type,width,height",
-                                      "-of","json",str(final)],capture_output=True,text=True,timeout=25,check=True)
+                                      "-of","json",str(raw)],capture_output=True,text=True,timeout=25,check=True)
                 streams=json.loads(probe.stdout or "{}").get("streams") or []
                 video=next((x for x in streams if x.get("codec_type")=="video"),None)
                 if not video or int(video.get("width") or 0)<640 or int(video.get("height") or 0)<360:
                     raise ValueError("documentary_archive_resolution")
+                # Normalize archival WebM/Ogg/etc. to a browser-safe H.264 MP4 so
+                # both Remotion/Chromium and the FFmpeg fallback consume one codec.
+                subprocess.run([
+                    "ffmpeg","-y","-loglevel","error","-i",str(raw),"-an",
+                    "-vf","scale='min(1280,iw)':-2:force_original_aspect_ratio=decrease,fps=30,format=yuv420p",
+                    "-c:v","libx264","-preset","veryfast","-crf","21","-movflags","+faststart",str(final)
+                ],check=True,timeout=max(90,int(os.getenv("LONGFORM_ARCHIVE_TRANSCODE_TIMEOUT_SECONDS","300"))))
+                if not final.exists() or final.stat().st_size<100000:
+                    raise ValueError("documentary_archive_transcode")
                 urls.add(item["url"]);media.append(final);credits.append(item);video_count+=1
                 media_index=len(media)-1
                 for values in scene_media.values():
@@ -283,6 +292,8 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
             except Exception as exc:
                 print(f"Documentary Commons video deferred: {type(exc).__name__}",flush=True)
                 final.unlink(missing_ok=True)
+            finally:
+                raw.unlink(missing_ok=True)
 
     # Contextual Pexels motion B-roll complements subject-specific archive/still imagery.
     for query in _broll_queries(scenes,channel):
