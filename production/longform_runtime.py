@@ -115,6 +115,7 @@ def produce_once(*,channel:str,db_path:str,output_dir:str,voice:str="tr-TR-EmelN
         metadata["tts_provider"]=tts["provider"]
         metadata["caption_pages"]=len(tts["captions"])
         metadata["post_qc"]=rendered.get("post_qc") or {}
+        metadata["mastering"]=rendered.get("mastering") or {}
         metadata["visual_beat_count"]=len(beats)
         metadata["documentary_media"]=documentary["report"]
         metadata["description"]=_description(str(metadata.get("description") or ""),evidence,credits)
@@ -125,7 +126,7 @@ def produce_once(*,channel:str,db_path:str,output_dir:str,voice:str="tr-TR-EmelN
                                  provider="wikidata+commons+pexels")
         return {"queued":queued,"content_id":contract["content_id"],"subject":subject,"kind":kind,
                 "video":str(output),"word_count":narration["word_count"],"script_provider":narration["provider"],
-                "renderer":rendered["renderer"],"quality":rendered["quality"],"post_qc":rendered.get("post_qc") or {},
+                "renderer":rendered["renderer"],"quality":rendered["quality"],"post_qc":rendered.get("post_qc") or {},"mastering":rendered.get("mastering") or {},
                 "visual_beat_count":len(beats),"caption_pages":len(tts["captions"]),"documentary_media":documentary["report"]}
     finally:
         for frame in frames:
