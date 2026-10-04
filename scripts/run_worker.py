@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import sqlite3
+import time
 
 from viral_futbol.config import Settings
 from viral_futbol.service_v2 import run_once_v2
@@ -15,6 +17,40 @@ from production.format_scheduler import decide as decide_formats
 from production.longform_runtime import last_activity as last_longform_activity, produce_once as produce_longform
 from production.youtube_auth import channel_preflight
 
+
+
+def _force_pair_token() -> str:
+    return os.getenv("VIRAL_FORCE_PAIR_TOKEN","").strip()
+
+def _force_pair_pending(db_path:str) -> bool:
+    token=_force_pair_token()
+    if not token:
+        return False
+    with sqlite3.connect(db_path,timeout=30) as db:
+        db.execute("CREATE TABLE IF NOT EXISTS production_one_shots (token TEXT PRIMARY KEY, completed_at REAL NOT NULL)")
+        row=db.execute("SELECT 1 FROM production_one_shots WHERE token=?",(token,)).fetchone()
+    return row is None
+
+def _mark_force_pair_complete(db_path:str) -> None:
+    token=_force_pair_token()
+    if not token:
+        return
+    with sqlite3.connect(db_path,timeout=30) as db:
+        db.execute("CREATE TABLE IF NOT EXISTS production_one_shots (token TEXT PRIMARY KEY, completed_at REAL NOT NULL)")
+        db.execute("INSERT OR IGNORE INTO production_one_shots(token,completed_at) VALUES (?,?)",(token,time.time()))
+        db.commit()
+
+def _short_generated(result:dict|None) -> bool:
+    if not isinstance(result,dict) or "error" in result:
+        return False
+    for key in ("generated_lite","rendered","queued","completed"):
+        try:
+            if int(result.get(key) or 0)>0:
+                return True
+        except (TypeError,ValueError):
+            pass
+    selected=result.get("selected")
+    return isinstance(selected,list) and len(selected)>0
 
 def _x_daily_limit() -> int:
     try:
