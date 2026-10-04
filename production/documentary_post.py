@@ -3,15 +3,47 @@ from __future__ import annotations
 import json,math,os,re,shutil,subprocess,tempfile
 from pathlib import Path
 
+def _measure_loudnorm(path:Path,target_lufs:float,true_peak:float,lra:float)->dict:
+    completed=subprocess.run([
+        "ffmpeg","-hide_banner","-nostats","-i",str(path),
+        "-af",f"loudnorm=I={target_lufs}:TP={true_peak}:LRA={lra}:print_format=json",
+        "-f","null","-"
+    ],capture_output=True,text=True,timeout=max(120,int(os.getenv("LONGFORM_MASTER_MEASURE_TIMEOUT_SECONDS","300"))))
+    blocks=re.findall(r"\{[^{}]*\"input_i\"[^{}]*\}",completed.stderr or "",re.DOTALL)
+    if not blocks:
+        return {}
+    try:
+        data=json.loads(blocks[-1])
+        values={
+            "input_i":float(data["input_i"]),
+            "input_lra":float(data["input_lra"]),
+            "input_tp":float(data["input_tp"]),
+            "input_thresh":float(data["input_thresh"]),
+            "target_offset":float(data["target_offset"]),
+        }
+        return values if all(math.isfinite(x) for x in values.values()) else {}
+    except (KeyError,TypeError,ValueError,json.JSONDecodeError):
+        return {}
+
 def master_audio(path:Path,target_lufs:float|None=None,true_peak:float|None=None,lra:float|None=None)->dict:
     target_lufs=float(os.getenv("LONGFORM_TARGET_LUFS","-16")) if target_lufs is None else float(target_lufs)
     true_peak=float(os.getenv("LONGFORM_TRUE_PEAK_DBTP","-1.5")) if true_peak is None else float(true_peak)
     lra=float(os.getenv("LONGFORM_TARGET_LRA","9")) if lra is None else float(lra)
     if not path.exists():
         raise ValueError("mastering_input_missing")
+    measured=_measure_loudnorm(path,target_lufs,true_peak,lra)
+    mode="two_pass" if measured else "single_pass_fallback"
+    if measured:
+        af=(
+            f"loudnorm=I={target_lufs}:TP={true_peak}:LRA={lra}"
+            f":measured_I={measured['input_i']}:measured_LRA={measured['input_lra']}"
+            f":measured_TP={measured['input_tp']}:measured_thresh={measured['input_thresh']}"
+            f":offset={measured['target_offset']}:linear=true,aresample=48000"
+        )
+    else:
+        af=f"loudnorm=I={target_lufs}:TP={true_peak}:LRA={lra},aresample=48000"
     with tempfile.TemporaryDirectory(prefix="doc-master-") as td:
         target=Path(td)/"mastered.mp4"
-        af=f"loudnorm=I={target_lufs}:TP={true_peak}:LRA={lra},aresample=48000"
         subprocess.run([
             "ffmpeg","-y","-loglevel","error","-i",str(path),
             "-map","0:v:0","-map","0:a:0","-c:v","copy","-af",af,
@@ -20,7 +52,7 @@ def master_audio(path:Path,target_lufs:float|None=None,true_peak:float|None=None
         if not target.exists() or target.stat().st_size<100000:
             raise RuntimeError("documentary_mastering_failed")
         shutil.copy2(target,path)
-    return {"target_lufs":target_lufs,"true_peak":true_peak,"lra":lra}
+    return {"target_lufs":target_lufs,"true_peak":true_peak,"lra":lra,"mode":mode,"measured":measured}
 
 def _loudness(path:Path)->dict:
     completed=subprocess.run([
