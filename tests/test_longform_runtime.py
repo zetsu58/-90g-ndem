@@ -16,7 +16,9 @@ class LongFormRuntimeTests(unittest.TestCase):
         return {"media":media,"credits":[],"report":{"real_media":8,"images":8,"videos":0,"text_cards":0}}
 
     def fake_tts(self,text,path,voice):
-        Path(path).write_bytes(b"x"*2048);return Path(path)
+        Path(path).write_bytes(b"x"*2048)
+        captions=[{"text":"örnek anlatım","startMs":0.0,"endMs":1200.0,"tokens":[{"text":"örnek","startMs":0.0,"endMs":500.0},{"text":"anlatım","startMs":500.0,"endMs":1200.0}]}]
+        return {"audio":Path(path),"tokens":captions[0]["tokens"],"captions":captions,"provider":"mock"}
 
     def fake_music(self,path,*args,**kwargs):
         Path(path).write_bytes(b"x"*12000);return Path(path)
@@ -25,14 +27,15 @@ class LongFormRuntimeTests(unittest.TestCase):
         self.assertGreaterEqual(len(contract["visual_beats"]),35)
         self.assertEqual(contract["media_report"]["text_cards"],0)
         Path(output).write_bytes(b"x"*120000)
-        return {"renderer":"mock","quality":{"format":"video","duration":210}}
+        self.assertTrue(contract["captions"])
+        return {"renderer":"mock","quality":{"format":"video","duration":210},"post_qc":{"passed":True}}
 
     def _patches(self):
         return (
             patch("production.longform_runtime.research",return_value=self.evidence()),
             patch("production.longform_runtime.generate_narration",return_value={"text":"x "*500,"word_count":500,"provider":"mock"}),
             patch("production.longform_runtime.build_documentary_media",side_effect=self.fake_documentary),
-            patch("production.longform_runtime.synthesize",side_effect=self.fake_tts),
+            patch("production.longform_runtime.synthesize_timed",side_effect=self.fake_tts),
             patch("production.longform_runtime.instrumental",side_effect=self.fake_music),
             patch("production.longform_runtime.render_contract",side_effect=self.fake_render),
         )
@@ -53,6 +56,8 @@ class LongFormRuntimeTests(unittest.TestCase):
             self.assertEqual(metadata["content_format"],"video")
             self.assertGreaterEqual(metadata["visual_beat_count"],35)
             self.assertEqual(metadata["documentary_media"]["text_cards"],0)
+            self.assertEqual(metadata["caption_pages"],1)
+            self.assertTrue(metadata["post_qc"]["passed"])
             self.assertIsNotNone(last_activity(db,"viral_futbol"))
 
     def test_bamloop_runtime_queues_documentary_video(self):
