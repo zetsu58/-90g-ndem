@@ -34,4 +34,21 @@ class DocumentaryMediaTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"documentary_real_media_gate"):
                 build_documentary_media(subject="Örnek Futbolcu",scenes=self.scenes(),claims=["Doğrulanmış olgu"],output_dir=Path(td),content_id="abc",channel="viral_futbol",target_assets=12)
 
+    def test_motion_broll_gate_rejects_photo_only_documentary(self):
+        items=[{"url":f"https://example.test/{i}.jpg","title":"Örnek Futbolcu","source":"Wikimedia Commons","license":"CC BY","artist":"","page":""} for i in range(10)]
+        def fake_download(url,path,max_bytes):
+            Path(path).write_bytes(b"raw")
+        def fake_clean(source,destination):
+            Path(destination).write_bytes(b"image")
+        fingerprints=iter([f"fp{i}" for i in range(20)])
+        with tempfile.TemporaryDirectory() as td, \
+             patch.dict("os.environ",{"LONGFORM_MIN_REAL_MEDIA":"8","LONGFORM_MIN_VIDEO_BROLL":"2"},clear=False), \
+             patch("production.documentary_media._commons",return_value=items), \
+             patch("production.documentary_media._pexels",return_value=[]), \
+             patch("production.documentary_media._download",side_effect=fake_download), \
+             patch("production.documentary_media._clean_image",side_effect=fake_clean), \
+             patch("production.documentary_media._image_fingerprint",side_effect=lambda path: next(fingerprints)):
+            with self.assertRaisesRegex(ValueError,"documentary_motion_media_gate"):
+                build_documentary_media(subject="Örnek Futbolcu",scenes=self.scenes(),claims=["Doğrulanmış olgu"],output_dir=Path(td),content_id="abc",channel="viral_futbol",target_assets=12)
+
 if __name__=="__main__": unittest.main()
