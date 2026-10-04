@@ -6,6 +6,7 @@ from production.longform_metadata import longform_metadata
 from production.longform_script import build_script
 from production.remotion_bridge import render
 from production.longform_ffmpeg import render_slideshow
+from production.documentary_post import master_audio, inspect_documentary
 from viral_futbol.youtube_publisher import _validate_video
 
 def _lower_third(scene:dict)->str:
@@ -18,7 +19,7 @@ def _lower_third(scene:dict)->str:
 def render_longform(*, subject:str, channel:str, output:Path, media:list[Path], audio:Path,
                     music:Path|None=None, facts:list[str]|None=None, fact_manifest:dict|None=None,
                     kind:str|None=None, target_seconds:int=210, force:bool=False,
-                    visual_beats:list[dict]|None=None)->dict:
+                    visual_beats:list[dict]|None=None,captions:list[dict]|None=None)->dict:
     if not media:
         raise ValueError("long-form requires media")
     if not audio or not audio.exists():
@@ -40,17 +41,20 @@ def render_longform(*, subject:str, channel:str, output:Path, media:list[Path], 
     diagnostic={}
     ok=render(output=output,title=metadata["title"],caption=caption,duration=target_seconds,
               kind="football" if channel=="viral_futbol" else "explainer",media=media,audio=audio,
-              music=music,content_format="video",scenes=remotion_scenes,beats=visual_beats or [],
+              music=music,content_format="video",scenes=remotion_scenes,beats=visual_beats or [],captions=captions or [],
               force=force,diagnostic=diagnostic)
     renderer="remotion"
     if not ok:
         render_slideshow(media=media,scenes=editorial["scenes"],audio=audio,output=output,music=music,
-                         beats=visual_beats or [])
+                         beats=visual_beats or [],captions=captions or [])
         renderer="ffmpeg"
+    mastering=master_audio(output)
     quality=_validate_video(output,"video")
+    post_qc=inspect_documentary(output,len(visual_beats or []),float(target_seconds))
     return {"video":str(output),"metadata":metadata,"editorial":editorial,
             "script_contract":script_contract,"quality":quality,"renderer":renderer,
-            "visual_beat_count":len(visual_beats or []),"render_diagnostic":diagnostic}
+            "visual_beat_count":len(visual_beats or []),"caption_pages":len(captions or []),
+            "mastering":mastering,"post_qc":post_qc,"render_diagnostic":diagnostic}
 
 def render_contract(contract:dict,output:Path,force:bool=False)->dict:
     if not contract.get("ready_for_render"):
@@ -59,4 +63,4 @@ def render_contract(contract:dict,output:Path,force:bool=False)->dict:
                            media=contract["media"],audio=contract["audio"],music=contract.get("music"),
                            fact_manifest=contract["manifest"],kind=contract["metadata"].get("kind"),
                            target_seconds=int(contract["metadata"].get("target_seconds") or 210),force=force,
-                           visual_beats=contract.get("visual_beats"))
+                           visual_beats=contract.get("visual_beats"),captions=contract.get("captions"))
