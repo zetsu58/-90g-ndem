@@ -30,7 +30,7 @@ class DocumentaryMediaTests(unittest.TestCase):
             self.assertNotEqual(left["mediaIndex"],right["mediaIndex"])
 
     def test_real_media_gate_fails_closed_instead_of_text_cards(self):
-        with tempfile.TemporaryDirectory() as td, patch("production.documentary_media._commons",return_value=[]), patch("production.documentary_media._pexels",return_value=[]):
+        with tempfile.TemporaryDirectory() as td, patch("production.documentary_media._commons",return_value=[]), patch("production.documentary_media._commons_video",return_value=[]), patch("production.documentary_media._pexels",return_value=[]):
             with self.assertRaisesRegex(ValueError,"documentary_real_media_gate"):
                 build_documentary_media(subject="Örnek Futbolcu",scenes=self.scenes(),claims=["Doğrulanmış olgu"],output_dir=Path(td),content_id="abc",channel="viral_futbol",target_assets=12)
 
@@ -44,6 +44,7 @@ class DocumentaryMediaTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td, \
              patch.dict("os.environ",{"LONGFORM_MIN_REAL_MEDIA":"8","LONGFORM_MIN_VIDEO_BROLL":"2"},clear=False), \
              patch("production.documentary_media._commons",return_value=items), \
+             patch("production.documentary_media._commons_video",return_value=[]), \
              patch("production.documentary_media._pexels",return_value=[]), \
              patch("production.documentary_media._download",side_effect=fake_download), \
              patch("production.documentary_media._clean_image",side_effect=fake_clean), \
