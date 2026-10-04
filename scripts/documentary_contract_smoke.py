@@ -2,9 +2,10 @@
 from production.longform import plan
 from production.documentary_media import visual_beats
 from production.timed_tts import _approximate,_pages
-from production.documentary_post import inspect_documentary
+from production.documentary_post import inspect_documentary, master_audio
 from production.longform_renderer import render_contract
-import subprocess
+import subprocess,tempfile
+from pathlib import Path
 
 def main():
     facts=[f"Doğrulanmış olgu {i}" for i in range(12)]
@@ -21,6 +22,18 @@ def main():
     assert pages and all(1<=len(x["text"].split())<=7 for x in pages)
     assert callable(inspect_documentary)
     assert callable(render_contract)
+    with tempfile.TemporaryDirectory(prefix="doc-smoke-") as td:
+        sample=Path(td)/"sample.mp4"
+        subprocess.run([
+            "ffmpeg","-y","-loglevel","error",
+            "-f","lavfi","-i","testsrc2=size=640x360:rate=30",
+            "-f","lavfi","-i","sine=frequency=440:sample_rate=48000",
+            "-t","3","-c:v","libx264","-preset","ultrafast","-crf","20",
+            "-c:a","aac","-b:a","160k","-pix_fmt","yuv420p",str(sample)
+        ],check=True,timeout=60)
+        mastered=master_audio(sample)
+        assert mastered["mode"]=="two_pass", mastered
+        assert sample.exists() and sample.stat().st_size>100000
     filters=subprocess.run(["ffmpeg","-hide_banner","-filters"],capture_output=True,text=True,check=True).stdout
     encoders=subprocess.run(["ffmpeg","-hide_banner","-encoders"],capture_output=True,text=True,check=True).stdout
     assert "loudnorm" in filters, "ffmpeg loudnorm missing"
