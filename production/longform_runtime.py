@@ -3,7 +3,7 @@ from __future__ import annotations
 import json,os,time
 from pathlib import Path
 from production.format_scheduler import channel_kind
-from production.longform_assets import synthesize
+from production.timed_tts import synthesize_timed
 from production.documentary_media import build_documentary_media, visual_beats
 from production.longform_narration import generate_narration
 from production.longform_producer import prepare_contract,attach_assets
@@ -93,7 +93,7 @@ def produce_once(*,channel:str,db_path:str,output_dir:str,voice:str="tr-TR-EmelN
     audio=directory/f"{contract['content_id']}-voice.mp3"
     frames=[];credits=[];music=None
     try:
-        synthesize(narration["text"],audio,voice)
+        tts=synthesize_timed(narration["text"],audio,voice)
         documentary=build_documentary_media(subject=subject,scenes=contract["editorial"]["scenes"],
                                             claims=contract["script"]["verified_claims"],output_dir=directory,
                                             content_id=contract["content_id"],channel=channel,target_assets=12)
@@ -105,12 +105,16 @@ def produce_once(*,channel:str,db_path:str,output_dir:str,voice:str="tr-TR-EmelN
         ready=attach_assets(contract,media=frames,audio=audio,music=music)
         ready["visual_beats"]=beats
         ready["media_report"]=documentary["report"]
+        ready["captions"]=tts["captions"]
         output=directory/f"{contract['content_id']}.mp4"
         rendered=render_contract(ready,output,force=force_remotion)
         metadata=dict(contract["metadata"])
         metadata["word_count"]=narration["word_count"]
         metadata["script_provider"]=narration["provider"]
         metadata["renderer"]=rendered["renderer"]
+        metadata["tts_provider"]=tts["provider"]
+        metadata["caption_pages"]=len(tts["captions"])
+        metadata["post_qc"]=rendered.get("post_qc") or {}
         metadata["visual_beat_count"]=len(beats)
         metadata["documentary_media"]=documentary["report"]
         metadata["description"]=_description(str(metadata.get("description") or ""),evidence,credits)
@@ -121,8 +125,8 @@ def produce_once(*,channel:str,db_path:str,output_dir:str,voice:str="tr-TR-EmelN
                                  provider="wikidata+commons+pexels")
         return {"queued":queued,"content_id":contract["content_id"],"subject":subject,"kind":kind,
                 "video":str(output),"word_count":narration["word_count"],"script_provider":narration["provider"],
-                "renderer":rendered["renderer"],"quality":rendered["quality"],
-                "visual_beat_count":len(beats),"documentary_media":documentary["report"]}
+                "renderer":rendered["renderer"],"quality":rendered["quality"],"post_qc":rendered.get("post_qc") or {},
+                "visual_beat_count":len(beats),"caption_pages":len(tts["captions"]),"documentary_media":documentary["report"]}
     finally:
         for frame in frames:
             Path(frame).unlink(missing_ok=True)
