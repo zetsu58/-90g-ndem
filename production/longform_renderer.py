@@ -1,5 +1,6 @@
 """Render a verified 3–4 minute documentary through Remotion with FFmpeg fallback."""
 from __future__ import annotations
+import os
 from pathlib import Path
 from production.longform import plan
 from production.longform_metadata import longform_metadata
@@ -39,10 +40,15 @@ def render_longform(*, subject:str, channel:str, output:Path, media:list[Path], 
     ]
     caption=_lower_third(editorial["scenes"][0])
     diagnostic={}
-    ok=render(output=output,title=metadata["title"],caption=caption,duration=target_seconds,
-              kind="football" if channel=="viral_futbol" else "explainer",media=media,audio=audio,
-              music=music,content_format="video",scenes=remotion_scenes,beats=visual_beats or [],captions=captions or [],
-              force=force,diagnostic=diagnostic)
+    force_ffmpeg=os.getenv("LONGFORM_FORCE_FFMPEG","false").casefold() in {"1","true","yes","on"}
+    if force_ffmpeg:
+        ok=False
+        diagnostic["bypassed"]="low_memory_ffmpeg"
+    else:
+        ok=render(output=output,title=metadata["title"],caption=caption,duration=target_seconds,
+                  kind="football" if channel=="viral_futbol" else "explainer",media=media,audio=audio,
+                  music=music,content_format="video",scenes=remotion_scenes,beats=visual_beats or [],captions=captions or [],
+                  force=force,diagnostic=diagnostic)
     renderer="remotion"
     if not ok:
         render_slideshow(media=media,scenes=editorial["scenes"],audio=audio,output=output,music=music,
