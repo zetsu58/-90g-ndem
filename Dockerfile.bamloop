@@ -14,6 +14,7 @@ RUN python -m compileall -q /app/viral_futbol /app/bamloop /app/production /app/
     && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core espeak-ng chromium \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir . \
+    && python /app/scripts/documentary_contract_smoke.py \
     && useradd --create-home --uid 10001 app \
     && mkdir -p /data/bamloop \
     && chown -R app:app /app /data
