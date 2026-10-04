@@ -9,7 +9,7 @@ from PIL import Image
 
 from production import documentary_media
 from viral_futbol import pexels_media
-from viral_futbol import youtube_publisher
+from viral_futbol import youtube_publisher, lite_video
 
 
 class RelevantMediaTests(unittest.TestCase):
@@ -65,6 +65,15 @@ class RelevantMediaTests(unittest.TestCase):
         with patch.object(documentary_media.urllib.request,"urlopen",return_value=self._response(payload)):
             found=documentary_media._commons("Arda Güler","Arda Güler",6)
         self.assertEqual([x["title"] for x in found],["File:Arda Güler Real Madrid.jpg"])
+
+    def test_lite_render_stops_before_tts_without_relevant_images(self):
+        with tempfile.TemporaryDirectory() as td, \
+             patch.object(lite_video,"download_pexels_frames",return_value=[]), \
+             patch.object(lite_video,"_save_speech") as speech:
+            with self.assertRaisesRegex(ValueError,"insufficient_relevant_visual_media"):
+                lite_video.render_lite_video(story_id="visual-gate",title="Arda Güler maçı",
+                    sources=[],language="tr",voice_name="tr-TR-AhmetNeural",output_dir=td)
+            speech.assert_not_called()
 
     def test_short_description_carries_commons_attribution(self):
         with tempfile.TemporaryDirectory() as td:
