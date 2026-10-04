@@ -48,8 +48,7 @@ def _short_generated(result:dict|None) -> bool:
                 return True
         except (TypeError,ValueError):
             pass
-    selected=result.get("selected")
-    return isinstance(selected,list) and len(selected)>0
+    return False
 
 def _x_daily_limit() -> int:
     try:
