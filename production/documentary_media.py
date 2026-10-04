@@ -176,11 +176,12 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
     target=max(8,target_assets or int(os.getenv("LONGFORM_MEDIA_TARGET","12")))
     min_real=max(6,int(os.getenv("LONGFORM_MIN_REAL_MEDIA","8")))
     media=[];credits=[];fingerprints=set();urls=set();image_count=0;video_count=0
+    scene_media={str(i):[] for i in range(len(scenes))}
 
-    def add_commons(item:dict)->None:
+    def add_commons(item:dict)->int|None:
         nonlocal image_count
         if item["url"] in urls or len(media)>=target:
-            return
+            return None
         raw=output_dir/f"{content_id}-commons-raw-{len(media)}"
         final=output_dir/f"{content_id}-doc-{len(media)}.jpg"
         try:
@@ -189,12 +190,14 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
             fingerprint=_image_fingerprint(final)
             if fingerprint in fingerprints:
                 final.unlink(missing_ok=True)
-                return
+                return None
             fingerprints.add(fingerprint);urls.add(item["url"])
             media.append(final);credits.append(item);image_count+=1
+            return len(media)-1
         except Exception as exc:
             print(f"Documentary Commons asset deferred: {type(exc).__name__}",flush=True)
             final.unlink(missing_ok=True)
+            return None
         finally:
             raw.unlink(missing_ok=True)
 
@@ -203,7 +206,10 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
             break
         try:
             for item in _commons(query,subject,4):
-                add_commons(item)
+                media_index=add_commons(item)
+                if media_index is not None:
+                    for values in scene_media.values():
+                        values.append(media_index)
                 if len(media)>=target:
                     break
         except Exception as exc:
@@ -232,6 +238,10 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
                 if not video or int(video.get("width") or 0)<960 or int(video.get("height") or 0)<540:
                     raise ValueError("documentary_broll_resolution")
                 urls.add(item["url"]);media.append(final);credits.append(item);video_count+=1
+                media_index=len(media)-1
+                for scene_index,scene in enumerate(scenes):
+                    if _scene_context(str(scene.get("section") or ""),channel)==query:
+                        scene_media[str(scene_index)].insert(0,media_index)
             except Exception as exc:
                 print(f"Documentary Pexels asset deferred: {type(exc).__name__}",flush=True)
                 final.unlink(missing_ok=True)
@@ -244,6 +254,7 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
     return {
         "media":media,
         "credits":credits,
+        "scene_media":scene_media,
         "report":{
             "real_media":len(media),"images":image_count,"videos":video_count,
             "min_real_media":min_real,"text_cards":0,
@@ -252,24 +263,33 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
         },
     }
 
-def visual_beats(scenes:list[dict],media_count:int,beat_seconds:float|None=None)->list[dict]:
+def visual_beats(scenes:list[dict],media_count:int,beat_seconds:float|None=None,scene_media:dict[str,list[int]]|None=None)->list[dict]:
     if media_count<1:
         raise ValueError("visual_beats_require_media")
     target=max(3.5,min(7.0,beat_seconds or float(os.getenv("LONGFORM_VISUAL_BEAT_SECONDS","5.0"))))
-    beats=[];global_index=0
+    beats=[];global_index=0;last_media=-1
     motions=("push-in","pan-left","pull-out","pan-right","parallax")
+    all_media=list(range(media_count))
     for scene_index,scene in enumerate(scenes):
         start=float(scene.get("start") or 0)
         duration=max(1.0,float(scene.get("duration") or target))
         count=max(1,math.ceil(duration/target))
         each=duration/count
+        candidates=list(dict.fromkeys((scene_media or {}).get(str(scene_index),[]) or all_media))
+        if not candidates:
+            candidates=all_media
         for part in range(count):
+            choice=candidates[(part+scene_index)%len(candidates)]
+            if choice==last_media and len(candidates)>1:
+                choice=candidates[(part+scene_index+1)%len(candidates)]
+            elif choice==last_media and media_count>1:
+                choice=(choice+1)%media_count
             beats.append({
                 "start":round(start+part*each,3),
                 "duration":round(each,3),
-                "mediaIndex":global_index%media_count,
+                "mediaIndex":choice,
                 "sceneIndex":scene_index,
                 "motion":motions[global_index%len(motions)],
             })
-            global_index+=1
+            last_media=choice;global_index+=1
     return beats
