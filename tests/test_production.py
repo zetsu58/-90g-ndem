@@ -131,7 +131,7 @@ class ProductionTests(unittest.TestCase):
                  patch('bamloop.pipeline.refresh_credentials', return_value=object()), \
                  patch('bamloop.youtube.verify_channel', return_value={'id':'UC123','title':'test'}), \
                  patch('production.youtube_auth.verify_public_upload',return_value=True), \
-                 patch('bamloop.pipeline._validate_short'), \
+                 patch('bamloop.pipeline._validate_video',return_value={'duration':30}), \
                  patch('bamloop.pipeline.upload',return_value='real-bam-id'):
                 self.assertEqual(publish_pending()['uploaded'],1)
             row=queue.db.execute("SELECT youtube_video_id,upload_state FROM publish_queue WHERE content_id='bam-direct'").fetchone()
@@ -143,7 +143,7 @@ class ProductionTests(unittest.TestCase):
              PublishQueue(self.db,'bamloop') as queue:
             self.enqueue(queue,'oauth-failure')
             with patch('bamloop.pipeline.credentials_ready',return_value=True), \
-                 patch('bamloop.pipeline._validate_short'), \
+                 patch('bamloop.pipeline._validate_video',return_value={'duration':30}), \
                  patch('bamloop.pipeline.refresh_credentials', side_effect=RuntimeError('invalid_grant')), \
                  patch('bamloop.pipeline.GitHubLedger') as ledger, \
                  patch('bamloop.pipeline.upload') as upload:
@@ -167,7 +167,7 @@ class ProductionTests(unittest.TestCase):
             with PublicationStore(self.db) as manifests:
                 manifests.remember('viral-direct','Kulüp oyuncuyu duyurdu','tr',['Kulüp'])
             with patch('viral_futbol.youtube_publisher._download'), \
-                 patch('viral_futbol.youtube_publisher._validate_short',return_value={'duration':30}), \
+                 patch('viral_futbol.youtube_publisher._validate_video',return_value={'duration':30}), \
                  patch('viral_futbol.youtube_publisher._refresh_credentials',return_value=object()), \
                  patch('viral_futbol.youtube_publisher.channel_preflight',return_value={'id':'UC123','title':'test'}), \
                  patch('viral_futbol.youtube_publisher.verify_public_upload',return_value=True), \
@@ -191,7 +191,7 @@ class ProductionTests(unittest.TestCase):
             with PublicationStore(self.db) as manifests:
                 manifests.remember('auth-reject','Gerçek olmayan test başlığı','tr',[])
             with patch('viral_futbol.youtube_publisher._download'), \
-                 patch('viral_futbol.youtube_publisher._validate_short',return_value={'duration':30}), \
+                 patch('viral_futbol.youtube_publisher._validate_video',return_value={'duration':30}), \
                  patch('viral_futbol.youtube_publisher._refresh_credentials',side_effect=RuntimeError('invalid_grant')), \
                  patch('production.github_ledger.GitHubLedger') as ledger, \
                  patch('viral_futbol.youtube_publisher._upload') as upload:
@@ -214,7 +214,7 @@ class ProductionTests(unittest.TestCase):
             with PublicationStore(self.db) as manifests:
                 manifests.remember('ledger-write-failure','Yayın testi','tr',[])
             with patch('viral_futbol.youtube_publisher._download'), \
-                 patch('viral_futbol.youtube_publisher._validate_short',return_value={'duration':30}), \
+                 patch('viral_futbol.youtube_publisher._validate_video',return_value={'duration':30}), \
                  patch('viral_futbol.youtube_publisher._refresh_credentials',return_value=object()), \
                  patch('viral_futbol.youtube_publisher.channel_preflight',return_value={'id':'UC123','title':'test'}), \
                  patch('viral_futbol.youtube_publisher.verify_public_upload',return_value=True), \

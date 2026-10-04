@@ -15,6 +15,7 @@ from PIL import Image, ImageOps
 
 UA={"User-Agent":"90Gundem-BAMLOOP/2.0 documentary"}
 ALLOWED_LICENSE=("cc by","cc0","public domain","pd-")
+UNRELATED_SUBJECTS=("fan boy","supporter","cosplay","video game","football manager","meme")
 
 def _normalized(value:str)->str:
     plain=unicodedata.normalize("NFKD",str(value).casefold()).encode("ascii","ignore").decode()
@@ -36,7 +37,7 @@ def _commons(query:str,subject:str,limit:int=6)->list[dict]:
     params=urllib.parse.urlencode({
         "action":"query","generator":"search","gsrsearch":query,"gsrnamespace":"6",
         "gsrlimit":str(max(8,limit*3)),"prop":"imageinfo",
-        "iiprop":"url|mime|extmetadata","iiurlwidth":"1600","format":"json","origin":"*"
+        "iiprop":"url|size|mime|extmetadata","iiurlwidth":"1600","format":"json"
     })
     req=urllib.request.Request("https://commons.wikimedia.org/w/api.php?"+params,headers=UA)
     with urllib.request.urlopen(req,timeout=20) as response:
@@ -47,6 +48,8 @@ def _commons(query:str,subject:str,limit:int=6)->list[dict]:
         info=(page.get("imageinfo") or [{}])[0]
         if not str(info.get("mime") or "").startswith("image/"):
             continue
+        if int(info.get("width") or 0)<960 or int(info.get("height") or 0)<540:
+            continue
         meta=info.get("extmetadata") or {}
         license_name=str((meta.get("LicenseShortName") or {}).get("value") or "")
         if license_name and not any(x in license_name.casefold() for x in ALLOWED_LICENSE):
@@ -55,7 +58,9 @@ def _commons(query:str,subject:str,limit:int=6)->list[dict]:
         title_tokens=_tokens(title)
         overlap=len(subject_tokens & title_tokens)
         # Subject-specific Commons results must visibly identify the documentary subject.
-        if subject_tokens and overlap==0:
+        if any(term in _normalized(title) for term in UNRELATED_SUBJECTS):
+            continue
+        if subject_tokens and overlap<min(2,len(subject_tokens)):
             continue
         url=str(info.get("thumburl") or info.get("url") or "")
         if not url:
@@ -223,6 +228,7 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
     target=max(8,target_assets or int(os.getenv("LONGFORM_MEDIA_TARGET","12")))
     min_real=max(6,int(os.getenv("LONGFORM_MIN_REAL_MEDIA","8")))
     min_video=max(0,int(os.getenv("LONGFORM_MIN_VIDEO_BROLL","2")))
+    min_subject_images=max(3,int(os.getenv("LONGFORM_MIN_SUBJECT_IMAGES","3"))) if channel=="viral_futbol" else 0
     max_images=max(1,target-min_video)
     media=[];credits=[];fingerprints=set();urls=set();image_count=0;video_count=0
     scene_media={str(i):[] for i in range(len(scenes))}
@@ -332,6 +338,10 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
         for path in media:
             Path(path).unlink(missing_ok=True)
         raise ValueError(f"documentary_real_media_gate:{len(media)}/{min_real}")
+    if image_count<min_subject_images:
+        for path in media:
+            Path(path).unlink(missing_ok=True)
+        raise ValueError(f"documentary_subject_media_gate:{image_count}/{min_subject_images}")
     if video_count<min_video:
         for path in media:
             Path(path).unlink(missing_ok=True)
@@ -343,7 +353,7 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
         "scene_media":scene_media,
         "report":{
             "real_media":len(media),"images":image_count,"videos":video_count,
-            "min_real_media":min_real,"min_video_broll":min_video,"text_cards":0,
+            "min_real_media":min_real,"min_video_broll":min_video,"min_subject_images":min_subject_images,"text_cards":0,
             "commons_queries":len(_commons_queries(subject,scenes,claims,channel)),
             "broll_queries":len(_broll_queries(scenes,channel)),
         },

@@ -143,15 +143,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     card_path = directory / f"{story_id}.png"; audio_path = directory / f"{story_id}.mp3"
     stage("media_search")
     frames = download_pexels_frames(title=title, narration=narration, sources=sources, output_dir=directory, story_id=story_id)
-    # Editorial graphics are honest when relevant licensed imagery is absent.
-    # Never substitute footage of an unrelated player or club.
-    if not frames:
-        beats = [title, *(facts or [])]
-        for index in range(3):
-            frame = directory / f"{story_id}-editorial-{index}.png"
-            _card(frame, beats[index % len(beats)], narration, sources, index)
-            frames.append(frame)
-    stage("tts")
+    # A news Short needs at least two distinct, subject-matched photographs.\n    # Defer production when providers are unavailable; text cards are not a\n    # substitute for reporting imagery. The worker retries the story later.\n    if len(frames) < 2:\n        raise ValueError("insufficient_relevant_visual_media")\n    stage("tts")
     try: asyncio.run(asyncio.wait_for(_save_speech(narration, _edge_voice(voice_name, language), audio_path), timeout=45))
     except Exception as exc:
         offline_voice = "tr" if language == "tr" else "en-us"; print(f"ViralFutbol Edge TTS unavailable, using offline voice: {exc}", flush=True); subprocess.run(["espeak-ng", "-v", offline_voice, "-s", "175", "-w", str(audio_path), narration], check=True, timeout=60)
@@ -221,3 +213,4 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     if motion_video: motion_video.unlink(missing_ok=True)
     stage("complete")
     return final_path
+

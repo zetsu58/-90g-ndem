@@ -153,7 +153,34 @@ def _metadata(job:dict)->tuple[str,str,list[str]]:
         tags=[str(x)[:80] for x in (job.get("tags") or ["futbol"]) if str(x).strip()][:25]
         return title,description,tags
     metadata=discovery_metadata(raw_title, language)
-    return str(metadata["title"]), str(metadata["description"]), list(metadata["tags"])
+    description=str(metadata["description"])
+    credits=job.get("media_credits") or []
+    if isinstance(credits,list):
+        lines=[]
+        for item in credits[:8]:
+            if not isinstance(item,dict): continue
+            page=str(item.get("page") or "")
+            if urllib.parse.urlsplit(page).netloc != "commons.wikimedia.org": continue
+            artist=re.sub(r"\s+"," ",str(item.get("artist") or "Wikimedia contributor"))[:100]
+            license_name=re.sub(r"\s+"," ",str(item.get("license") or ""))[:60]
+            lines.append(f"- {artist} · {license_name} · {page}")
+        if lines: description=(description+"\n\nGörsel kredileri:\n"+"\n".join(lines))[:5000]
+    return str(metadata["title"]), description, list(metadata["tags"])
+
+
+def _media_credits(job:dict)->list[dict]:
+    source=str(job.get("video_path") or "")
+    parsed=urllib.parse.urlsplit(source)
+    if parsed.scheme!="file" or parsed.netloc not in {"","localhost"}:
+        return []
+    video=Path(urllib.request.url2pathname(parsed.path))
+    sidecar=video.with_name(video.stem+"-media-credits.json")
+    try:
+        if sidecar.stat().st_size>32_000: return []
+        credits=json.loads(sidecar.read_text(encoding="utf-8"))
+        return credits[:8] if isinstance(credits,list) else []
+    except (OSError,ValueError,TypeError):
+        return []
 
 
 def _safe_upload_error(exc: Exception) -> str:
@@ -259,7 +286,10 @@ def publish_ready(settings,limit:int=2)->dict:
                             result['skipped']+=1
                             result['skip_reasons']['ledger_unavailable'] = result['skip_reasons'].get('ledger_unavailable', 0) + 1
                             continue
-                    video_id=_upload(video_path,json.loads(job['metadata']),config,credentials=credentials)
+                    upload_metadata=json.loads(job['metadata'])
+                    if str(upload_metadata.get('content_format') or 'short')!='video':
+                        upload_metadata['media_credits']=_media_credits(job)
+                    video_id=_upload(video_path,upload_metadata,config,credentials=credentials)
                 ledger_warning=None
                 if ledger:
                     try:
