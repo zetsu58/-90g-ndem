@@ -150,6 +150,16 @@ def _download(url:str,path:Path,max_bytes:int)->None:
                 raise ValueError("documentary_asset_too_large")
             out.write(chunk)
 
+def _normalize_archive_video(source:Path,destination:Path)->Path:
+    subprocess.run([
+        "ffmpeg","-y","-loglevel","error","-i",str(source),"-an",
+        "-vf","scale='min(1280,iw)':-2:force_original_aspect_ratio=decrease,fps=30,format=yuv420p",
+        "-c:v","libx264","-preset","veryfast","-crf","21","-movflags","+faststart",str(destination)
+    ],check=True,timeout=max(90,int(os.getenv("LONGFORM_ARCHIVE_TRANSCODE_TIMEOUT_SECONDS","300"))))
+    if not destination.exists() or destination.stat().st_size<100000:
+        raise ValueError("documentary_archive_transcode")
+    return destination
+
 def _clean_image(source:Path,destination:Path)->None:
     with Image.open(source) as opened:
         image=ImageOps.fit(opened.convert("RGB"),(1280,720),method=Image.Resampling.LANCZOS)
@@ -276,15 +286,7 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
                 video=next((x for x in streams if x.get("codec_type")=="video"),None)
                 if not video or int(video.get("width") or 0)<640 or int(video.get("height") or 0)<360:
                     raise ValueError("documentary_archive_resolution")
-                # Normalize archival WebM/Ogg/etc. to a browser-safe H.264 MP4 so
-                # both Remotion/Chromium and the FFmpeg fallback consume one codec.
-                subprocess.run([
-                    "ffmpeg","-y","-loglevel","error","-i",str(raw),"-an",
-                    "-vf","scale='min(1280,iw)':-2:force_original_aspect_ratio=decrease,fps=30,format=yuv420p",
-                    "-c:v","libx264","-preset","veryfast","-crf","21","-movflags","+faststart",str(final)
-                ],check=True,timeout=max(90,int(os.getenv("LONGFORM_ARCHIVE_TRANSCODE_TIMEOUT_SECONDS","300"))))
-                if not final.exists() or final.stat().st_size<100000:
-                    raise ValueError("documentary_archive_transcode")
+                _normalize_archive_video(raw,final)
                 urls.add(item["url"]);media.append(final);credits.append(item);video_count+=1
                 media_index=len(media)-1
                 for values in scene_media.values():
