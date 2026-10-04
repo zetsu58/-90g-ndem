@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
+import sqlite3
+import time
 
 from viral_futbol.config import Settings
 from viral_futbol.service_v2 import run_once_v2
 from viral_futbol.worker import AutonomousWorker
-from viral_futbol.youtube_publisher import publish_ready, YouTubeConfig, _refresh_credentials
+from viral_futbol.youtube_publisher import publish_ready
 from viral_futbol.youtube_performance import collect_youtube_performance
 from viral_futbol.x_dedupe import XPublishedStore
 from viral_futbol.x_newsroom import fetch_x_newsroom
@@ -13,8 +15,40 @@ from viral_futbol.x_pipeline import publish_verified_cluster
 from viral_futbol.trend_pipeline import trend_gate
 from production.format_scheduler import decide as decide_formats
 from production.longform_runtime import last_activity as last_longform_activity, produce_once as produce_longform
-from production.youtube_auth import channel_preflight
 
+
+
+def _force_pair_token() -> str:
+    return os.getenv("VIRAL_FORCE_PAIR_TOKEN","").strip()
+
+def _force_pair_pending(db_path:str) -> bool:
+    token=_force_pair_token()
+    if not token:
+        return False
+    with sqlite3.connect(db_path,timeout=30) as db:
+        db.execute("CREATE TABLE IF NOT EXISTS production_one_shots (token TEXT PRIMARY KEY, completed_at REAL NOT NULL)")
+        row=db.execute("SELECT 1 FROM production_one_shots WHERE token=?",(token,)).fetchone()
+    return row is None
+
+def _mark_force_pair_complete(db_path:str) -> None:
+    token=_force_pair_token()
+    if not token:
+        return
+    with sqlite3.connect(db_path,timeout=30) as db:
+        db.execute("CREATE TABLE IF NOT EXISTS production_one_shots (token TEXT PRIMARY KEY, completed_at REAL NOT NULL)")
+        db.execute("INSERT OR IGNORE INTO production_one_shots(token,completed_at) VALUES (?,?)",(token,time.time()))
+        db.commit()
+
+def _short_generated(result:dict|None) -> bool:
+    if not isinstance(result,dict) or "error" in result:
+        return False
+    for key in ("generated_lite","rendered","queued","completed"):
+        try:
+            if int(result.get(key) or 0)>0:
+                return True
+        except (TypeError,ValueError):
+            pass
+    return False
 
 def _x_daily_limit() -> int:
     try:
@@ -31,9 +65,12 @@ def cycle(progress=None) -> dict:
     settings = Settings()
     stage("trend_gate")
     longform_enabled=os.getenv('VIRAL_LONGFORM_ENABLED',os.getenv('LONGFORM_ENABLED','false')).casefold() in {'1','true','yes','on'}
+    force_pair=_force_pair_pending(settings.db_path)
     try: longform_interval=float(os.getenv('VIRAL_LONGFORM_INTERVAL_HOURS',os.getenv('LONGFORM_INTERVAL_HOURS','24')))
     except ValueError: longform_interval=24.0
-    format_decision = decide_formats(last_longform_at=last_longform_activity(settings.db_path,'viral_futbol'),longform_enabled=longform_enabled,interval_hours=longform_interval)
+    format_decision = decide_formats(last_longform_at=last_longform_activity(settings.db_path,'viral_futbol'),longform_enabled=(longform_enabled or force_pair),interval_hours=longform_interval)
+    if force_pair and not format_decision.longform:
+        format_decision=type(format_decision)(shorts=True,longform=True,reason="force_pair_pending")
     result = {"formats": {"shorts": format_decision.shorts, "longform": format_decision.longform, "reason": format_decision.reason}, "trend_gate": None, "x": {"verified": 0, "published": 0, "duplicates": 0, "budget_blocked": 0, "gate_blocked": 0, "failed": 0}, "shorts": None, "longform": None, "youtube": None, "performance": None}
 
     try:
@@ -95,24 +132,24 @@ def cycle(progress=None) -> dict:
     if not shorts_ok:
         result["longform"] = {"deferred": True, "reason": "shorts_scan_failed"}
     elif format_decision.longform:
-        config=YouTubeConfig.from_env()
-        if not config.ready:
-            result["longform"] = {"deferred": True, "reason": "youtube_credentials_not_ready"}
-        else:
-            try:
-                credentials=_refresh_credentials(config)
-                channel_preflight(credentials,os.getenv("YOUTUBE_EXPECTED_CHANNEL_ID","").strip())
-                result["longform"] = produce_longform(
-                    channel="viral_futbol",
-                    db_path=settings.db_path,
-                    output_dir=os.getenv("VIRAL_LONGFORM_OUTPUT_DIR","storage/viral_longform"),
-                    voice=settings.voice_name,
-                )
-            except Exception as exc:
-                result["longform"] = {"deferred": True, "error": type(exc).__name__, "reason": "longform_preflight_or_production_failed"}
-                print(f"ViralFutbol long-form deferred: {type(exc).__name__}", flush=True)
+        try:
+            result["longform"] = produce_longform(
+                channel="viral_futbol",
+                db_path=settings.db_path,
+                output_dir=os.getenv("VIRAL_LONGFORM_OUTPUT_DIR","storage/viral_longform"),
+                voice=settings.voice_name,
+            )
+        except Exception as exc:
+            result["longform"] = {"deferred": True, "error": type(exc).__name__, "reason": "longform_production_failed"}
+            print(f"ViralFutbol long-form deferred: {type(exc).__name__}", flush=True)
     else:
         result["longform"] = {"deferred": True, "reason": format_decision.reason}
+
+    if force_pair and _short_generated(result.get("shorts")) and isinstance(result.get("longform"),dict) and result["longform"].get("queued"):
+        _mark_force_pair_complete(settings.db_path)
+        result["force_pair"]={"completed":True,"token_present":True}
+    elif force_pair:
+        result["force_pair"]={"completed":False,"token_present":True}
 
     # Upload only after this cycle's Shorts scan completed cleanly. Existing
     # complete jobs remain queued instead of being published during a degraded run.
