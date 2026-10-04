@@ -1,6 +1,6 @@
 """Zero-network production contract smoke for the documentary stack."""
 from production.longform import plan
-from production.documentary_media import visual_beats
+from production.documentary_media import visual_beats, _normalize_archive_video
 from production.timed_tts import _approximate,_pages
 from production.documentary_post import inspect_documentary, master_audio
 from production.longform_renderer import render_contract
@@ -34,6 +34,18 @@ def main():
         mastered=master_audio(sample)
         assert mastered["mode"]=="two_pass", mastered
         assert sample.exists() and sample.stat().st_size>100000
+        archive=Path(td)/"archive.avi"
+        normalized=Path(td)/"archive.mp4"
+        subprocess.run([
+            "ffmpeg","-y","-loglevel","error","-f","lavfi","-i","testsrc2=size=640x360:rate=24",
+            "-t","3","-an","-c:v","mpeg4","-q:v","4",str(archive)
+        ],check=True,timeout=60)
+        _normalize_archive_video(archive,normalized)
+        codec=subprocess.run([
+            "ffprobe","-v","error","-select_streams","v:0","-show_entries","stream=codec_name",
+            "-of","default=nw=1:nk=1",str(normalized)
+        ],capture_output=True,text=True,check=True,timeout=30).stdout.strip()
+        assert codec=="h264", codec
     filters=subprocess.run(["ffmpeg","-hide_banner","-filters"],capture_output=True,text=True,check=True).stdout
     encoders=subprocess.run(["ffmpeg","-hide_banner","-encoders"],capture_output=True,text=True,check=True).stdout
     assert "loudnorm" in filters, "ffmpeg loudnorm missing"
