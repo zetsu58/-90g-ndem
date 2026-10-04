@@ -1,6 +1,6 @@
 """Professional documentary post-production: loudness mastering and rendered-output QC."""
 from __future__ import annotations
-import json,math,os,re,subprocess,tempfile
+import json,math,os,re,shutil,subprocess,tempfile
 from pathlib import Path
 
 def master_audio(path:Path,target_lufs:float=-16.0,true_peak:float=-1.5,lra:float=9.0)->dict:
@@ -16,7 +16,7 @@ def master_audio(path:Path,target_lufs:float=-16.0,true_peak:float=-1.5,lra:floa
         ],check=True,timeout=max(180,int(os.getenv("LONGFORM_MASTER_TIMEOUT_SECONDS","600"))))
         if not target.exists() or target.stat().st_size<100000:
             raise RuntimeError("documentary_mastering_failed")
-        target.replace(path)
+        shutil.copy2(target,path)
     return {"target_lufs":target_lufs,"true_peak":true_peak,"lra":lra}
 
 def _loudness(path:Path)->dict:
