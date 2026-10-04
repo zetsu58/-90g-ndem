@@ -4,8 +4,9 @@ from production.documentary_media import visual_beats, _normalize_archive_video
 from production.timed_tts import _approximate,_pages
 from production.documentary_post import inspect_documentary, master_audio
 from production.longform_renderer import render_contract
-import subprocess,tempfile
+import os,subprocess,tempfile
 from pathlib import Path
+from scripts.run_worker import _force_pair_pending,_mark_force_pair_complete,_short_generated
 
 def main():
     facts=[f"Doğrulanmış olgu {i}" for i in range(12)]
@@ -22,6 +23,21 @@ def main():
     assert pages and all(1<=len(x["text"].split())<=7 for x in pages)
     assert callable(inspect_documentary)
     assert callable(render_contract)
+    with tempfile.TemporaryDirectory(prefix="pair-smoke-") as pair_td:
+        pair_db=str(Path(pair_td)/"pair.sqlite3")
+        previous=os.environ.get("VIRAL_FORCE_PAIR_TOKEN")
+        os.environ["VIRAL_FORCE_PAIR_TOKEN"]="smoke-pair-token"
+        try:
+            assert _force_pair_pending(pair_db)
+            assert _short_generated({"generated_lite":1})
+            assert not _short_generated({"generated_lite":0,"selected":[]})
+            _mark_force_pair_complete(pair_db)
+            assert not _force_pair_pending(pair_db)
+        finally:
+            if previous is None:
+                os.environ.pop("VIRAL_FORCE_PAIR_TOKEN",None)
+            else:
+                os.environ["VIRAL_FORCE_PAIR_TOKEN"]=previous
     with tempfile.TemporaryDirectory(prefix="doc-smoke-") as td:
         sample=Path(td)/"sample.mp4"
         subprocess.run([
