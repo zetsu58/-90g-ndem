@@ -98,7 +98,7 @@ def produce_once(*,channel:str,db_path:str,output_dir:str,voice:str="tr-TR-EmelN
                                             claims=contract["script"]["verified_claims"],output_dir=directory,
                                             content_id=contract["content_id"],channel=channel,target_assets=12)
         frames=documentary["media"];credits=documentary["credits"]
-        beats=visual_beats(contract["editorial"]["scenes"],len(frames))
+        beats=visual_beats(contract["editorial"]["scenes"],len(frames),scene_media=documentary.get("scene_media"))
 
         if os.getenv("LONGFORM_MUSIC_ENABLED","true").casefold() in {"1","true","yes","on"}:
             music=instrumental(directory/f"{contract['content_id']}-bed.wav")
@@ -118,7 +118,7 @@ def produce_once(*,channel:str,db_path:str,output_dir:str,voice:str="tr-TR-EmelN
         video_path=output.resolve().as_uri() if channel=="viral_futbol" else str(output.resolve())
         with PublishQueue(db_path,channel) as queue:
             queued=queue.enqueue(contract["content_id"],"video",subject,contract["content_hash"],video_path,metadata,
-                                 provider="wikidata+commons")
+                                 provider="wikidata+commons+pexels")
         return {"queued":queued,"content_id":contract["content_id"],"subject":subject,"kind":kind,
                 "video":str(output),"word_count":narration["word_count"],"script_provider":narration["provider"],
                 "renderer":rendered["renderer"],"quality":rendered["quality"],
