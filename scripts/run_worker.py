@@ -145,8 +145,11 @@ def cycle(progress=None) -> dict:
                 voice=settings.voice_name,
             )
         except Exception as exc:
-            result["longform"] = {"deferred": True, "error": type(exc).__name__, "reason": "longform_production_failed"}
-            print(f"ViralFutbol long-form deferred: {type(exc).__name__}", flush=True)
+            safe_codes={"documentary_real_media_gate","documentary_subject_media_gate","documentary_motion_media_gate","insufficient_runtime_evidence","no_unused_longform_topic","documentary_qc_visual_changes","documentary_qc_dark_frames"}
+            code=str(exc).split(":",1)[0] if isinstance(exc,ValueError) else ""
+            reason=code if code in safe_codes else type(exc).__name__
+            result["longform"] = {"deferred": True, "error": type(exc).__name__, "reason": "longform_production_failed", "failure_code":reason}
+            print(f"ViralFutbol long-form deferred: {reason}", flush=True)
     else:
         result["longform"] = {"deferred": True, "reason": format_decision.reason}
 
@@ -184,3 +187,4 @@ def cycle(progress=None) -> dict:
 if __name__ == "__main__":
     print("ViralFutbol V2 autonomous worker + fail-closed quality gates started", flush=True)
     AutonomousWorker(cycle).serve_forever()
+
