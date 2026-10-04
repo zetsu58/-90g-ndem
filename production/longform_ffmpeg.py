@@ -80,17 +80,18 @@ def render_slideshow(*,media:list[Path],scenes:list[dict],audio:Path,output:Path
 
         if music and Path(music).exists():
             mix="[1:a]volume=1.06,acompressor=threshold=0.14:ratio=2.5:attack=5:release=100[voice];[2:a]volume=0.10[bed];[voice][bed]amix=inputs=2:duration=first:dropout_transition=2:normalize=0,alimiter=limit=0.94[a]"
-            cmd=["ffmpeg","-y","-loglevel","error","-i",str(video),"-i",str(audio),"-stream_loop","-1","-i",str(music),
+            cmd=["ffmpeg","-y","-loglevel","error","-filter_threads","1","-threads","1","-i",str(video),"-i",str(audio),"-stream_loop","-1","-i",str(music),
                  "-filter_complex",mix,"-map","0:v","-map","[a]"]
         else:
             mix="[1:a]volume=1.06,acompressor=threshold=0.14:ratio=2.5:attack=5:release=100,alimiter=limit=0.94[a]"
-            cmd=["ffmpeg","-y","-loglevel","error","-i",str(video),"-i",str(audio),"-filter_complex",mix,
+            cmd=["ffmpeg","-y","-loglevel","error","-filter_threads","1","-threads","1","-i",str(video),"-i",str(audio),"-filter_complex",mix,
                  "-map","0:v","-map","[a]"]
         if subtitle_filter:
-            cmd.extend(["-vf",subtitle_filter,"-c:v","libx264","-preset","veryfast","-crf","20","-pix_fmt","yuv420p"])
+            cmd.extend(["-vf",subtitle_filter,"-c:v","libx264","-preset","veryfast","-crf","20","-threads","1","-pix_fmt","yuv420p"])
         else:
             cmd.extend(["-c:v","copy"])
         cmd.extend(["-c:a","aac","-b:a","192k","-shortest","-movflags","+faststart",str(output)])
         subprocess.run(cmd,check=True,timeout=max(300,int(os.getenv("LONGFORM_FFMPEG_TIMEOUT_SECONDS","1500"))))
     if not output.exists() or output.stat().st_size<100000:
         raise RuntimeError("longform_ffmpeg_output_invalid")
+
