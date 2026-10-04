@@ -35,6 +35,49 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         lines.append(f"Dialogue: 0,{_ass_time(page.get('startMs',0))},{_ass_time(page.get('endMs',0))},Doc,,0,0,0,,{text}\n")
     path.write_text("".join(lines),encoding="utf-8")
 
+def _render_fast(*,media:list[Path],timeline:list[dict],audio:Path,output:Path,
+                 music:Path|None,captions:list[dict]|None)->None:
+    """Encode the real photo sequence and captions once on small CPU instances."""
+    with tempfile.TemporaryDirectory(prefix="longform-fast-") as td:
+        root=Path(td);stills=[];durations=[]
+        for index,beat in enumerate(timeline):
+            source=Path(media[int(beat.get("mediaIndex") or 0)%len(media)])
+            if source.suffix.lower() in VIDEO_EXTENSIONS:
+                still=root/f"archive-{index:03d}.jpg"
+                subprocess.run(["ffmpeg","-y","-loglevel","error","-threads","1","-i",str(source),
+                                "-frames:v","1",str(still)],check=True,timeout=45)
+                source=still
+            stills.append(source.resolve())
+            durations.append(max(2.0,float(beat.get("duration") or 5.0)))
+        if not stills:
+            raise ValueError("longform_fast_requires_real_media")
+        manifest=root/"stills.txt"
+        entries=[]
+        for still,duration in zip(stills,durations):
+            escaped=str(still).replace("'", "'\\''")
+            entries.extend([f"file '{escaped}'\n",f"duration {duration:.3f}\n"])
+        entries.append(f"file '{str(stills[-1]).replace(chr(39), chr(39)+chr(92)+chr(39)+chr(39))}'\n")
+        manifest.write_text("".join(entries),encoding="utf-8")
+        vf="fps=24,scale=1408:792:force_original_aspect_ratio=increase,crop=1280:720:x='64+14*sin(t*0.42)':y='36+8*cos(t*0.31)',format=yuv420p"
+        if captions:
+            ass=root/"captions.ass";_write_ass(ass,captions)
+            vf+=f",ass={ass}"
+        target=sum(durations)
+        cmd=["ffmpeg","-y","-loglevel","error","-filter_threads","1","-threads","1",
+             "-f","concat","-safe","0","-i",str(manifest),"-i",str(audio)]
+        if music and Path(music).exists():
+            cmd.extend(["-stream_loop","-1","-i",str(music)])
+            mix="[1:a]volume=1.06,acompressor=threshold=0.14:ratio=2.5:attack=5:release=100,apad[voice];[2:a]volume=0.10[bed];[voice][bed]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.94[a]"
+        else:
+            mix="[1:a]volume=1.06,acompressor=threshold=0.14:ratio=2.5:attack=5:release=100,apad,alimiter=limit=0.94[a]"
+        cmd.extend(["-vf",vf,"-filter_complex",mix,"-map","0:v","-map","[a]",
+                    "-c:v","libx264","-preset","ultrafast","-crf","18","-threads","1",
+                    "-pix_fmt","yuv420p","-c:a","aac","-b:a","192k","-t",f"{target:.3f}",
+                    "-movflags","+faststart",str(output)])
+        subprocess.run(cmd,check=True,timeout=max(300,int(os.getenv("LONGFORM_FFMPEG_TIMEOUT_SECONDS","1500"))))
+    if not output.exists() or output.stat().st_size<100000:
+        raise RuntimeError("longform_fast_output_invalid")
+
 def render_slideshow(*,media:list[Path],scenes:list[dict],audio:Path,output:Path,music:Path|None=None,
                      beats:list[dict]|None=None,captions:list[dict]|None=None)->None:
     if not media or not scenes:
@@ -45,6 +88,8 @@ def render_slideshow(*,media:list[Path],scenes:list[dict],audio:Path,output:Path
         for index,scene in enumerate(scenes)
     ]
     output.parent.mkdir(parents=True,exist_ok=True)
+    if os.getenv("LONGFORM_FAST_FFMPEG","false").casefold() in {"1","true","yes","on"}:
+        return _render_fast(media=media,timeline=timeline,audio=audio,output=output,music=music,captions=captions)
     with tempfile.TemporaryDirectory(prefix="longform-ffmpeg-") as td:
         root=Path(td);clips=[]
         for index,beat in enumerate(timeline):
