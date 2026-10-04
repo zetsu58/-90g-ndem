@@ -3,7 +3,9 @@ import {AbsoluteFill,Audio,Img,OffthreadVideo,Sequence,interpolate,staticFile,us
 
 type Scene={start:number;duration:number;caption?:string;mediaIndex?:number;motion?:string;section?:string};
 type Beat={start:number;duration:number;mediaIndex:number;sceneIndex?:number;motion?:string};
-export type ShortProps={title:string;caption:string;duration:number;kind:'football'|'meme'|'explainer';media:string[];audio?:string;music?:string;contentFormat?:'short'|'video';scenes?:Scene[];beats?:Beat[]};
+type CaptionToken={text:string;startMs:number;endMs:number};
+type CaptionPage={text:string;startMs:number;endMs:number;tokens?:CaptionToken[]};
+export type ShortProps={title:string;caption:string;duration:number;kind:'football'|'meme'|'explainer';media:string[];audio?:string;music?:string;contentFormat?:'short'|'video';scenes?:Scene[];beats?:Beat[];captions?:CaptionPage[]};
 
 const isVideo=(src:string)=>/\.(mp4|mov|webm|m4v)$/i.test(src);
 const clampText=(value:string,limit:number)=>value.length<=limit?value:`${value.slice(0,Math.max(0,limit-1)).trim()}…`;
@@ -14,10 +16,13 @@ export const ShortVideo:React.FC<ShortProps>=(p)=>{
   const media=p.media||[];
   const long=p.contentFormat==='video';
   const seconds=f/fps;
+  const currentMs=seconds*1000;
   const scenes=p.scenes||[];
   const beats=p.beats||[];
+  const captions=p.captions||[];
   const scene=long&&scenes.length?scenes.find((x)=>seconds>=x.start&&seconds<x.start+x.duration)??scenes[scenes.length-1]:undefined;
   const beat=long&&beats.length?beats.find((x)=>seconds>=x.start&&seconds<x.start+x.duration)??beats[beats.length-1]:undefined;
+  const captionPage=long&&captions.length?captions.find((x)=>currentMs>=x.startMs&&currentMs<x.endMs):undefined;
   const fallbackBeat=Math.max(1,Math.floor(fps*2.6));
   const activeStart=beat?Math.floor(beat.start*fps):(scene?Math.floor(scene.start*fps):0);
   const activeFrames=beat?Math.max(1,Math.floor(beat.duration*fps)):(scene?Math.max(1,Math.floor(scene.duration*fps)):fallbackBeat);
@@ -31,14 +36,20 @@ export const ShortVideo:React.FC<ShortProps>=(p)=>{
   const lowerThird=clampText(scene?.caption||p.caption||p.title,105);
   return <AbsoluteFill style={{backgroundColor:'#05080d',fontFamily:'Arial,sans-serif',color:'white',overflow:'hidden'}}>
     {src&&(isVideo(media[i])?<OffthreadVideo src={src} muted style={{width:'100%',height:'100%',objectFit:'cover',transform:`scale(${scale})`}}/>:<Img src={src} style={{width:'100%',height:'100%',objectFit:'cover',transform:`scale(${scale})`}}/>)}
-    {long?<AbsoluteFill style={{background:'linear-gradient(180deg,rgba(0,0,0,.28) 0%,rgba(0,0,0,.02) 42%,rgba(0,0,0,.42) 100%)'}}/>:<AbsoluteFill style={{background:'linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.72))'}}/>}
+    {long?<AbsoluteFill style={{background:'linear-gradient(180deg,rgba(0,0,0,.26) 0%,rgba(0,0,0,.01) 42%,rgba(0,0,0,.48) 100%)'}}/>:<AbsoluteFill style={{background:'linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.72))'}}/>}
     {long?
       <>
         <div style={{position:'absolute',top:28,left:38,fontSize:18,fontWeight:900,letterSpacing:1.1,textShadow:'0 2px 10px rgba(0,0,0,.8)'}}>{p.kind==='football'?'90+ GÜNDEM':'BAMLOOP'}</div>
         {section&&<div style={{position:'absolute',top:29,right:38,fontSize:15,fontWeight:700,letterSpacing:1.2,opacity:.88,textShadow:'0 2px 8px #000'}}>{section}</div>}
-        <div style={{position:'absolute',left:38,bottom:42,maxWidth:'78%',opacity:lowerThirdOpacity,background:'rgba(5,8,13,.72)',borderLeft:'4px solid rgba(255,255,255,.92)',padding:'14px 18px 15px 18px',fontSize:26,fontWeight:750,lineHeight:1.18,textShadow:'0 2px 8px rgba(0,0,0,.8)'}}>
+        <div style={{position:'absolute',left:38,bottom:105,maxWidth:'68%',opacity:lowerThirdOpacity,background:'rgba(5,8,13,.68)',borderLeft:'4px solid rgba(255,255,255,.92)',padding:'10px 15px 11px 15px',fontSize:23,fontWeight:740,lineHeight:1.16,textShadow:'0 2px 8px rgba(0,0,0,.8)'}}>
           {lowerThird}
         </div>
+        {captionPage&&<div style={{position:'absolute',left:'12%',right:'12%',bottom:28,textAlign:'center',fontSize:27,fontWeight:780,lineHeight:1.18,textShadow:'0 2px 8px #000',background:'rgba(0,0,0,.50)',borderRadius:8,padding:'8px 13px'}}>
+          {(captionPage.tokens&&captionPage.tokens.length?captionPage.tokens:[{text:captionPage.text,startMs:captionPage.startMs,endMs:captionPage.endMs}]).map((token,index)=>{
+            const active=currentMs>=token.startMs&&currentMs<token.endMs;
+            return <span key={`${token.startMs}-${index}`} style={{color:active?'#ffd54a':'white'}}>{token.text}{index<((captionPage.tokens?.length||1)-1)?' ':''}</span>;
+          })}
+        </div>}
       </>:
       <>
         <div style={{position:'absolute',top:70,left:55,right:55,fontSize:32,fontWeight:900}}>{p.kind==='football'?'90+ GÜNDEM':'BAMLOOP'}</div>
@@ -47,6 +58,6 @@ export const ShortVideo:React.FC<ShortProps>=(p)=>{
       </>
     }
     {p.audio&&<Audio src={staticFile(p.audio)}/>}
-    {p.music&&<Audio src={staticFile(p.music)} volume={long?0.12:0.18} loop={long}/>}
+    {p.music&&<Audio src={staticFile(p.music)} volume={long?0.10:0.18} loop={long}/>}
   </AbsoluteFill>;
 };

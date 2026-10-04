@@ -70,12 +70,49 @@ def _commons(query:str,subject:str,limit:int=6)->list[dict]:
     rows.sort(key=lambda x:x["score"],reverse=True)
     return rows[:limit]
 
+
+def _commons_video(query:str,subject:str,limit:int=3)->list[dict]:
+    params=urllib.parse.urlencode({
+        "action":"query","generator":"search","gsrsearch":query,"gsrnamespace":"6",
+        "gsrlimit":str(max(8,limit*4)),"prop":"imageinfo",
+        "iiprop":"url|mime|extmetadata","format":"json","origin":"*"
+    })
+    req=urllib.request.Request("https://commons.wikimedia.org/w/api.php?"+params,headers=UA)
+    with urllib.request.urlopen(req,timeout=20) as response:
+        data=json.loads(response.read())
+    subject_tokens=_tokens(subject);rows=[]
+    for page in (data.get("query",{}).get("pages",{}) or {}).values():
+        info=(page.get("imageinfo") or [{}])[0]
+        mime=str(info.get("mime") or "")
+        if not (mime.startswith("video/") or mime in {"application/ogg"}):
+            continue
+        meta=info.get("extmetadata") or {}
+        license_name=str((meta.get("LicenseShortName") or {}).get("value") or "")
+        if license_name and not any(x in license_name.casefold() for x in ALLOWED_LICENSE):
+            continue
+        title=str(page.get("title") or "")
+        title_tokens=_tokens(title)
+        overlap=len(subject_tokens & title_tokens)
+        if subject_tokens and overlap==0:
+            continue
+        url=str(info.get("url") or "")
+        if not url:
+            continue
+        rows.append({
+            "url":url,"title":title,"score":overlap*10,
+            "source":"Wikimedia Commons","license":license_name or "Wikimedia Commons",
+            "artist":re.sub(r"<[^>]+>"," ",str((meta.get("Artist") or {}).get("value") or "")).strip(),
+            "page":str(info.get("descriptionurl") or ""),"mime":mime,
+        })
+    rows.sort(key=lambda x:x["score"],reverse=True)
+    return rows[:limit]
+
 def _pexels(query:str,limit:int=5)->list[dict]:
     key=os.getenv("PEXELS_API_KEY","").strip()
     if not key:
         return []
     params=urllib.parse.urlencode({"query":query,"per_page":str(max(5,limit)),"orientation":"landscape","size":"medium"})
-    req=urllib.request.Request("https://api.pexels.com/videos/search?"+params,headers={"Authorization":key,"User-Agent":UA["User-Agent"]})
+    req=urllib.request.Request("https://api.pexels.com/v1/videos/search?"+params,headers={"Authorization":key,"User-Agent":UA["User-Agent"]})
     with urllib.request.urlopen(req,timeout=20) as response:
         data=json.loads(response.read())
     rows=[]
@@ -217,7 +254,37 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
         except Exception as exc:
             print(f"Documentary Commons search deferred: {type(exc).__name__}",flush=True)
 
-    # Contextual motion B-roll complements subject-specific archive/still imagery.
+    # Prefer subject-specific licensed archival motion from Wikimedia Commons.
+    for query in _commons_queries(subject,scenes,claims,channel)[:6]:
+        if video_count>=min_video:
+            break
+        try:
+            rows=_commons_video(query,subject,2)
+        except Exception as exc:
+            print(f"Documentary Commons video search deferred: {type(exc).__name__}",flush=True)
+            rows=[]
+        for item in rows:
+            if not item["url"] or item["url"] in urls or video_count>=min_video:
+                continue
+            suffix=".webm" if "webm" in str(item.get("mime") or "") else ".mp4"
+            final=output_dir/f"{content_id}-archive-{len(media)}{suffix}"
+            try:
+                _download(item["url"],final,48*1024*1024)
+                probe=subprocess.run(["ffprobe","-v","error","-show_entries","stream=codec_type,width,height",
+                                      "-of","json",str(final)],capture_output=True,text=True,timeout=25,check=True)
+                streams=json.loads(probe.stdout or "{}").get("streams") or []
+                video=next((x for x in streams if x.get("codec_type")=="video"),None)
+                if not video or int(video.get("width") or 0)<640 or int(video.get("height") or 0)<360:
+                    raise ValueError("documentary_archive_resolution")
+                urls.add(item["url"]);media.append(final);credits.append(item);video_count+=1
+                media_index=len(media)-1
+                for values in scene_media.values():
+                    values.insert(0,media_index)
+            except Exception as exc:
+                print(f"Documentary Commons video deferred: {type(exc).__name__}",flush=True)
+                final.unlink(missing_ok=True)
+
+    # Contextual Pexels motion B-roll complements subject-specific archive/still imagery.
     for query in _broll_queries(scenes,channel):
         if len(media)>=target and video_count>=min_video:
             break

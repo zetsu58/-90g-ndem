@@ -9,7 +9,7 @@ def enabled() -> bool:
     return os.getenv("REMOTION_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
 
 def render(*, output: Path, title: str, caption: str, duration: float, kind: str,
-           media: list[Path], audio: Path | None = None, music: Path | None = None, content_format: str = "short", scenes: list[dict] | None = None, beats: list[dict] | None = None, force: bool = False, timeout_seconds: int | None = None, diagnostic: dict | None = None) -> bool:
+           media: list[Path], audio: Path | None = None, music: Path | None = None, content_format: str = "short", scenes: list[dict] | None = None, beats: list[dict] | None = None, captions: list[dict] | None = None, force: bool = False, timeout_seconds: int | None = None, diagnostic: dict | None = None) -> bool:
     if not (force or enabled()):
         return False
     job_id = uuid.uuid4().hex
@@ -20,7 +20,7 @@ def render(*, output: Path, title: str, caption: str, duration: float, kind: str
         target = job_dir / f"{label}{suffix}"
         shutil.copy2(source, target)
         return f"jobs/{job_id}/{target.name}"
-    manifest = {"title": title, "caption": caption, "duration": duration, "kind": kind, "contentFormat": content_format, "smoke": kind == "smoke", "media": [], "scenes": scenes or [], "beats": beats or []}
+    manifest = {"title": title, "caption": caption, "duration": duration, "kind": kind, "contentFormat": content_format, "smoke": kind == "smoke", "media": [], "scenes": scenes or [], "beats": beats or [], "captions": captions or []}
     for index, source in enumerate(media):
         if source.exists():
             manifest["media"].append(stage(source, f"media-{index}"))

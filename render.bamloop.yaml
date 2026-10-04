@@ -52,6 +52,16 @@ services:
         value: "12"
       - key: LONGFORM_VISUAL_BEAT_SECONDS
         value: "5.0"
+      - key: LONGFORM_TARGET_LUFS
+        value: "-16"
+      - key: LONGFORM_TRUE_PEAK_DBTP
+        value: "-1.5"
+      - key: LONGFORM_TARGET_LRA
+        value: "9"
+      - key: LONGFORM_QC_MIN_CHANGE_RATIO
+        value: "0.32"
+      - key: LONGFORM_QC_MAX_DARK_RATIO
+        value: "0.08"
       - key: LONGFORM_MUSIC_ENABLED
         value: "true"
       - key: LONGFORM_RENDER_ONLY_WHEN_SLOT_READY
