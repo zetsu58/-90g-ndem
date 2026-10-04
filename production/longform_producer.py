@@ -1,6 +1,7 @@
 """Safe orchestration contract for a future long-form producer."""
 from __future__ import annotations
 import hashlib
+import os
 from pathlib import Path
 from production.longform_research import Evidence,build_fact_manifest
 from production.longform_script import build_script
@@ -19,10 +20,11 @@ def prepare_contract(*,subject:str,channel:str,evidence:list[Evidence],kind:str|
             "manifest":manifest,"script":script,"editorial":editorial,"metadata":metadata,
             "ready_for_assets":True,"ready_for_render":False}
 
-def attach_assets(contract:dict,*,media:list[Path],audio:Path,music:Path|None=None)->dict:
+def attach_assets(contract:dict,*,media:list[Path],audio:Path,music:Path|None=None,min_media:int|None=None)->dict:
     if not contract.get("ready_for_assets"): raise ValueError("contract_not_ready")
     existing=[Path(x) for x in media if Path(x).exists()]
-    if len(existing)<3: raise ValueError("insufficient_media")
+    required=max(3,min_media if min_media is not None else int(os.getenv("LONGFORM_MIN_REAL_MEDIA","8")))
+    if len(existing)<required: raise ValueError(f"insufficient_documentary_media:{len(existing)}/{required}")
     audio=Path(audio)
     if not audio.exists() or audio.stat().st_size<1: raise ValueError("narration_missing")
     value=dict(contract)
