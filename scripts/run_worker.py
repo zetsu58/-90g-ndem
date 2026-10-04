@@ -7,7 +7,7 @@ import time
 from viral_futbol.config import Settings
 from viral_futbol.service_v2 import run_once_v2
 from viral_futbol.worker import AutonomousWorker
-from viral_futbol.youtube_publisher import publish_ready, YouTubeConfig, _refresh_credentials
+from viral_futbol.youtube_publisher import publish_ready
 from viral_futbol.youtube_performance import collect_youtube_performance
 from viral_futbol.x_dedupe import XPublishedStore
 from viral_futbol.x_newsroom import fetch_x_newsroom
@@ -15,7 +15,6 @@ from viral_futbol.x_pipeline import publish_verified_cluster
 from viral_futbol.trend_pipeline import trend_gate
 from production.format_scheduler import decide as decide_formats
 from production.longform_runtime import last_activity as last_longform_activity, produce_once as produce_longform
-from production.youtube_auth import channel_preflight
 
 
 
