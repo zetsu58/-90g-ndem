@@ -134,24 +134,24 @@ def cycle(progress=None) -> dict:
     if not shorts_ok:
         result["longform"] = {"deferred": True, "reason": "shorts_scan_failed"}
     elif format_decision.longform:
-        config=YouTubeConfig.from_env()
-        if not config.ready:
-            result["longform"] = {"deferred": True, "reason": "youtube_credentials_not_ready"}
-        else:
-            try:
-                credentials=_refresh_credentials(config)
-                channel_preflight(credentials,os.getenv("YOUTUBE_EXPECTED_CHANNEL_ID","").strip())
-                result["longform"] = produce_longform(
-                    channel="viral_futbol",
-                    db_path=settings.db_path,
-                    output_dir=os.getenv("VIRAL_LONGFORM_OUTPUT_DIR","storage/viral_longform"),
-                    voice=settings.voice_name,
-                )
-            except Exception as exc:
-                result["longform"] = {"deferred": True, "error": type(exc).__name__, "reason": "longform_preflight_or_production_failed"}
-                print(f"ViralFutbol long-form deferred: {type(exc).__name__}", flush=True)
+        try:
+            result["longform"] = produce_longform(
+                channel="viral_futbol",
+                db_path=settings.db_path,
+                output_dir=os.getenv("VIRAL_LONGFORM_OUTPUT_DIR","storage/viral_longform"),
+                voice=settings.voice_name,
+            )
+        except Exception as exc:
+            result["longform"] = {"deferred": True, "error": type(exc).__name__, "reason": "longform_production_failed"}
+            print(f"ViralFutbol long-form deferred: {type(exc).__name__}", flush=True)
     else:
         result["longform"] = {"deferred": True, "reason": format_decision.reason}
+
+    if force_pair and _short_generated(result.get("shorts")) and isinstance(result.get("longform"),dict) and result["longform"].get("queued"):
+        _mark_force_pair_complete(settings.db_path)
+        result["force_pair"]={"completed":True,"token_present":True}
+    elif force_pair:
+        result["force_pair"]={"completed":False,"token_present":True}
 
     # Upload only after this cycle's Shorts scan completed cleanly. Existing
     # complete jobs remain queued instead of being published during a degraded run.
