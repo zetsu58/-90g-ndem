@@ -67,9 +67,12 @@ def cycle(progress=None) -> dict:
     settings = Settings()
     stage("trend_gate")
     longform_enabled=os.getenv('VIRAL_LONGFORM_ENABLED',os.getenv('LONGFORM_ENABLED','false')).casefold() in {'1','true','yes','on'}
+    force_pair=_force_pair_pending(settings.db_path)
     try: longform_interval=float(os.getenv('VIRAL_LONGFORM_INTERVAL_HOURS',os.getenv('LONGFORM_INTERVAL_HOURS','24')))
     except ValueError: longform_interval=24.0
-    format_decision = decide_formats(last_longform_at=last_longform_activity(settings.db_path,'viral_futbol'),longform_enabled=longform_enabled,interval_hours=longform_interval)
+    format_decision = decide_formats(last_longform_at=last_longform_activity(settings.db_path,'viral_futbol'),longform_enabled=(longform_enabled or force_pair),interval_hours=longform_interval)
+    if force_pair and not format_decision.longform:
+        format_decision=type(format_decision)(shorts=True,longform=True,reason="force_pair_pending")
     result = {"formats": {"shorts": format_decision.shorts, "longform": format_decision.longform, "reason": format_decision.reason}, "trend_gate": None, "x": {"verified": 0, "published": 0, "duplicates": 0, "budget_blocked": 0, "gate_blocked": 0, "failed": 0}, "shorts": None, "longform": None, "youtube": None, "performance": None}
 
     try:
