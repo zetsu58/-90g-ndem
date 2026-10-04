@@ -7,11 +7,13 @@ import time
 import tempfile
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlsplit
 
 from bamloop.pipeline import cycle, db_path, publish_pending
 from production.queue import PublishQueue, persistent_render_path, publishing_storage_ready, direct_publish_enabled
 from production.github_ledger import required as ledger_required, ready as ledger_ready
 from bamloop.youtube import credentials_ready
+from production.public_pages import public_page
 
 STATE: dict = {
     "service": "bamloop",
@@ -79,6 +81,14 @@ def worker() -> None:
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _reply_html(self, body: bytes) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        self.wfile.write(body)
+
     def _reply(self, status: int, payload: dict) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -88,14 +98,20 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_HEAD(self) -> None:
-        if self.path in {"/", "/health", "/healthz", "/ready", "/status", "/api/status"}:
-            self.send_response(200 if self.path != '/ready' or _publish_ready() else 503)
+        path = urlsplit(self.path).path.rstrip("/") or "/"
+        if path in {"/", "/health", "/healthz", "/ready", "/status", "/api/status"} or public_page("bamloop", path) is not None:
+            self.send_response(200 if path != '/ready' or _publish_ready() else 503)
             self.end_headers()
         else:
             self.send_response(404)
             self.end_headers()
 
     def do_GET(self) -> None:
+        path = urlsplit(self.path).path.rstrip("/") or "/"
+        page = public_page("bamloop", path)
+        if page is not None:
+            self._reply_html(page)
+            return
         if self.path == '/ready':
             ready = _publish_ready()
             self._reply(200 if ready else 503, {'status':'ready' if ready else 'persistence_required'})
