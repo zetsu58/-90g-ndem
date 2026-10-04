@@ -62,6 +62,8 @@ services:
         value: "8"
       - key: LONGFORM_MIN_VIDEO_BROLL
         value: "0"
+      - key: LONGFORM_FAST_FFMPEG
+        value: "true"
       - key: LONGFORM_MEDIA_TARGET
         value: "12"
       - key: LONGFORM_VISUAL_BEAT_SECONDS
@@ -110,3 +112,4 @@ services:
         sync: false
       - key: YOUTUBE_EXPECTED_CHANNEL_ID
         sync: false
+
