@@ -168,6 +168,7 @@ class ProductionTests(unittest.TestCase):
                 manifests.remember('viral-direct','Kulüp oyuncuyu duyurdu','tr',['Kulüp'])
             with patch('viral_futbol.youtube_publisher._download'), \
                  patch('viral_futbol.youtube_publisher._validate_video',return_value={'duration':30}), \
+                 patch('viral_futbol.youtube_publisher._media_credits',return_value=[{'page':'https://commons.wikimedia.org/wiki/File:A'},{'page':'https://commons.wikimedia.org/wiki/File:B'}]), \
                  patch('viral_futbol.youtube_publisher._refresh_credentials',return_value=object()), \
                  patch('viral_futbol.youtube_publisher.channel_preflight',return_value={'id':'UC123','title':'test'}), \
                  patch('viral_futbol.youtube_publisher.verify_public_upload',return_value=True), \
@@ -192,6 +193,7 @@ class ProductionTests(unittest.TestCase):
                 manifests.remember('auth-reject','Gerçek olmayan test başlığı','tr',[])
             with patch('viral_futbol.youtube_publisher._download'), \
                  patch('viral_futbol.youtube_publisher._validate_video',return_value={'duration':30}), \
+                 patch('viral_futbol.youtube_publisher._media_credits',return_value=[{'page':'https://commons.wikimedia.org/wiki/File:A'},{'page':'https://commons.wikimedia.org/wiki/File:B'}]), \
                  patch('viral_futbol.youtube_publisher._refresh_credentials',side_effect=RuntimeError('invalid_grant')), \
                  patch('production.github_ledger.GitHubLedger') as ledger, \
                  patch('viral_futbol.youtube_publisher._upload') as upload:
@@ -215,6 +217,7 @@ class ProductionTests(unittest.TestCase):
                 manifests.remember('ledger-write-failure','Yayın testi','tr',[])
             with patch('viral_futbol.youtube_publisher._download'), \
                  patch('viral_futbol.youtube_publisher._validate_video',return_value={'duration':30}), \
+                 patch('viral_futbol.youtube_publisher._media_credits',return_value=[{'page':'https://commons.wikimedia.org/wiki/File:A'},{'page':'https://commons.wikimedia.org/wiki/File:B'}]), \
                  patch('viral_futbol.youtube_publisher._refresh_credentials',return_value=object()), \
                  patch('viral_futbol.youtube_publisher.channel_preflight',return_value={'id':'UC123','title':'test'}), \
                  patch('viral_futbol.youtube_publisher.verify_public_upload',return_value=True), \
