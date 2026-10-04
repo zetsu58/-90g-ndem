@@ -51,13 +51,19 @@ services:
       - key: MIN_HOURS_BETWEEN_VIDEOS
         value: "12"
       - key: VIRAL_LONGFORM_ENABLED
-        value: "false"
+        value: "true"
       - key: VIRAL_LONGFORM_INTERVAL_HOURS
         value: "24"
       - key: VIRAL_LONGFORM_OUTPUT_DIR
         value: storage/viral_longform
       - key: LONGFORM_MIN_EVIDENCE
         value: "10"
+      - key: LONGFORM_MIN_REAL_MEDIA
+        value: "8"
+      - key: LONGFORM_MEDIA_TARGET
+        value: "12"
+      - key: LONGFORM_VISUAL_BEAT_SECONDS
+        value: "5.0"
       - key: LONGFORM_MUSIC_ENABLED
         value: "true"
       - key: LONGFORM_RENDER_ONLY_WHEN_SLOT_READY
@@ -73,6 +79,8 @@ services:
       - key: LONGFORM_LLM_MODEL
         sync: false
       - key: LONGFORM_LLM_API_KEY
+        sync: false
+      - key: PEXELS_API_KEY
         sync: false
       - key: PUBLISH_QUEUE_ENABLED
         value: "true"
