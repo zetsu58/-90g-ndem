@@ -50,7 +50,7 @@ def _story_label(title: str) -> str:
 
 def _commons_urls(query: str) -> list[dict]:
     params = urllib.parse.urlencode({"action":"query","generator":"search","gsrsearch":query,"gsrnamespace":"6","gsrlimit":"24","prop":"imageinfo","iiprop":"url|size|mime|extmetadata","iiurlwidth":"1600","format":"json"})
-    request = urllib.request.Request("https://commons.wikimedia.org/w/api.php?" + params, headers={"User-Agent":"90Gundem/1.0 (football shorts)"})
+    request = urllib.request.Request("https://commons.wikimedia.org/w/api.php?" + params, headers={"User-Agent":"90GundemMediaBot/2.1 (https://viralfutbol.onrender.com/)","Api-User-Agent":"90GundemMediaBot/2.1 (https://viralfutbol.onrender.com/)"})
     with urllib.request.urlopen(request, timeout=18) as response: payload = json.loads(response.read())
     required = " ".join(token for token in _normalized(query).split() if len(token)>2 and token not in {"football","logo","player"}); matches=[]
     for page in (payload.get("query",{}).get("pages",{}) or {}).values():
@@ -147,7 +147,7 @@ def download_pexels_frames(*, title: str, narration: str, sources: list[str], ou
     for index,item in enumerate(selected[:limit]):
         raw_path=output_dir/f"{story_id}-media-{index}"; frame_path=output_dir/f"{story_id}-frame-{index}.jpg"
         try:
-            request=urllib.request.Request(item["url"],headers={"User-Agent":"90Gundem/2.0 (https://viralfutbol.onrender.com/about)"})
+            request=urllib.request.Request(item["url"],headers={"User-Agent":"90GundemMediaBot/2.1 (https://viralfutbol.onrender.com/)"})
             with urllib.request.urlopen(request,timeout=20) as response: raw=response.read(10_000_001)
             if len(raw)>10_000_000: continue
             raw_path.write_bytes(raw); _render_frame(raw_path,frame_path,title,phrases[index%len(phrases)],item["title"],index,len(selected[:limit])); frames.append(frame_path); credits.append(item)
