@@ -15,6 +15,9 @@ def test_final_ffmpeg_failure_does_not_cache_partial_mp4(tmp_path):
     frame = tmp_path / 'frame.png'
     Image.new('RGB', (720, 1280), '#234567').save(frame)
 
+    second = tmp_path / 'frame-two.png'
+    Image.new('RGB', (720, 1280), '#425678').save(second)
+
     async def speech(_text, _voice, path):
         Path(path).write_bytes(b'fixture-audio')
 
@@ -22,7 +25,7 @@ def test_final_ffmpeg_failure_does_not_cache_partial_mp4(tmp_path):
         Path(command[-1]).write_bytes(b'ftyp' + b'partial' * 400)
         raise subprocess.TimeoutExpired(command, 1)
 
-    with patch('viral_futbol.lite_video.download_pexels_frames', return_value=[frame]), \
+    with patch('viral_futbol.lite_video.download_pexels_frames', return_value=[frame, second]), \
          patch('viral_futbol.lite_video._save_speech', side_effect=speech), \
          patch('viral_futbol.lite_video._media_duration', return_value=13), \
          patch('viral_futbol.lite_video.render_shot'), \

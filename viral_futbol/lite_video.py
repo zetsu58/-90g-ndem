@@ -143,7 +143,10 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     card_path = directory / f"{story_id}.png"; audio_path = directory / f"{story_id}.mp3"
     stage("media_search")
     frames = download_pexels_frames(title=title, narration=narration, sources=sources, output_dir=directory, story_id=story_id)
-    # A news Short needs at least two distinct, subject-matched photographs.\n    # Defer production when providers are unavailable; text cards are not a\n    # substitute for reporting imagery. The worker retries the story later.\n    if len(frames) < 2:\n        raise ValueError("insufficient_relevant_visual_media")\n    stage("tts")
+    # Require real subject-matched imagery before audio/render.
+    if len(frames) < 2:
+        raise ValueError("insufficient_relevant_visual_media")
+    stage("tts")
     try: asyncio.run(asyncio.wait_for(_save_speech(narration, _edge_voice(voice_name, language), audio_path), timeout=45))
     except Exception as exc:
         offline_voice = "tr" if language == "tr" else "en-us"; print(f"ViralFutbol Edge TTS unavailable, using offline voice: {exc}", flush=True); subprocess.run(["espeak-ng", "-v", offline_voice, "-s", "175", "-w", str(audio_path), narration], check=True, timeout=60)

@@ -26,7 +26,9 @@ class LiteShortDurationTests(unittest.TestCase):
             def frames(**_kwargs):
                 frame = base / 'frame.jpg'
                 Image.new('RGB', (720, 1280), '#314453').save(frame)
-                return [frame]
+                second = base / 'frame-two.jpg'
+                Image.new('RGB', (720, 1280), '#526475').save(second)
+                return [frame, second]
 
             with patch('viral_futbol.lite_video.download_pexels_frames', side_effect=frames), \
                     patch('viral_futbol.lite_video._save_speech', side_effect=speech):
