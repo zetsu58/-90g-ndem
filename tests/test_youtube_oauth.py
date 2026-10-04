@@ -3,12 +3,19 @@ from __future__ import annotations
 import unittest
 from unittest.mock import Mock, patch
 
-from production.youtube_auth import ChannelMismatch, ChannelNotConfigured, channel_preflight, safe_oauth_error, verify_public_upload
+from production.youtube_auth import ChannelMismatch, ChannelNotConfigured, authorized_client, channel_preflight, safe_oauth_error, verify_public_upload
 from scripts.youtube_oauth_bootstrap import authorization_url
 
 
 class OAuthSafetyTests(unittest.TestCase):
     ID = 'UC' + 'a' * 22
+
+    def test_resumable_308_reaches_google_api_client(self):
+        with patch('googleapiclient.discovery.build') as build:
+            authorized_client(Mock())
+        transport = build.call_args.kwargs['http'].http
+        self.assertNotIn(308, transport.redirect_codes)
+        self.assertIn(302, transport.redirect_codes)
 
     def test_secret_redacted_and_provider_codes(self):
         self.assertEqual(safe_oauth_error(RuntimeError({'error':'invalid_grant','refresh_token':'secret'})), 'invalid_grant')
