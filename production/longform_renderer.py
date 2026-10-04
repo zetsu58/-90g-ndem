@@ -1,4 +1,4 @@
-"""Render a verified 3–4 minute video through Remotion with FFmpeg fallback."""
+"""Render a verified 3–4 minute documentary through Remotion with FFmpeg fallback."""
 from __future__ import annotations
 from pathlib import Path
 from production.longform import plan
@@ -8,9 +8,17 @@ from production.remotion_bridge import render
 from production.longform_ffmpeg import render_slideshow
 from viral_futbol.youtube_publisher import _validate_video
 
+def _lower_third(scene:dict)->str:
+    text=str(scene.get("narration") or "").strip()
+    if ":" in text:
+        text=text.split(":",1)[1].strip()
+    words=text.split()
+    return " ".join(words[:18]) + ("…" if len(words)>18 else "")
+
 def render_longform(*, subject:str, channel:str, output:Path, media:list[Path], audio:Path,
                     music:Path|None=None, facts:list[str]|None=None, fact_manifest:dict|None=None,
-                    kind:str|None=None, target_seconds:int=210, force:bool=False)->dict:
+                    kind:str|None=None, target_seconds:int=210, force:bool=False,
+                    visual_beats:list[dict]|None=None)->dict:
     if not media:
         raise ValueError("long-form requires media")
     if not audio or not audio.exists():
@@ -24,23 +32,25 @@ def render_longform(*, subject:str, channel:str, output:Path, media:list[Path], 
     metadata=longform_metadata(subject,channel,resolved_kind)
     output.parent.mkdir(parents=True,exist_ok=True)
     remotion_scenes=[
-        {"start":scene["start"],"duration":scene["duration"],"caption":scene["narration"],
-         "mediaIndex":index%len(media),"motion":scene["motion"]}
+        {"start":scene["start"],"duration":scene["duration"],"caption":_lower_third(scene),
+         "mediaIndex":index%len(media),"motion":scene["motion"],"section":scene["section"]}
         for index,scene in enumerate(editorial["scenes"])
     ]
-    caption=editorial["scenes"][0]["narration"]
+    caption=_lower_third(editorial["scenes"][0])
     diagnostic={}
     ok=render(output=output,title=metadata["title"],caption=caption,duration=target_seconds,
               kind="football" if channel=="viral_futbol" else "explainer",media=media,audio=audio,
-              music=music,content_format="video",scenes=remotion_scenes,force=force,diagnostic=diagnostic)
+              music=music,content_format="video",scenes=remotion_scenes,beats=visual_beats or [],
+              force=force,diagnostic=diagnostic)
     renderer="remotion"
     if not ok:
-        render_slideshow(media=media,scenes=editorial["scenes"],audio=audio,output=output,music=music)
+        render_slideshow(media=media,scenes=editorial["scenes"],audio=audio,output=output,music=music,
+                         beats=visual_beats or [])
         renderer="ffmpeg"
     quality=_validate_video(output,"video")
     return {"video":str(output),"metadata":metadata,"editorial":editorial,
             "script_contract":script_contract,"quality":quality,"renderer":renderer,
-            "render_diagnostic":diagnostic}
+            "visual_beat_count":len(visual_beats or []),"render_diagnostic":diagnostic}
 
 def render_contract(contract:dict,output:Path,force:bool=False)->dict:
     if not contract.get("ready_for_render"):
@@ -48,4 +58,5 @@ def render_contract(contract:dict,output:Path,force:bool=False)->dict:
     return render_longform(subject=contract["subject"],channel=contract["channel"],output=output,
                            media=contract["media"],audio=contract["audio"],music=contract.get("music"),
                            fact_manifest=contract["manifest"],kind=contract["metadata"].get("kind"),
-                           target_seconds=int(contract["metadata"].get("target_seconds") or 210),force=force)
+                           target_seconds=int(contract["metadata"].get("target_seconds") or 210),force=force,
+                           visual_beats=contract.get("visual_beats"))

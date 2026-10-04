@@ -3,7 +3,8 @@ from __future__ import annotations
 import json,os,time
 from pathlib import Path
 from production.format_scheduler import channel_kind
-from production.longform_assets import build_media,synthesize
+from production.longform_assets import synthesize
+from production.documentary_media import build_documentary_media, visual_beats
 from production.longform_narration import generate_narration
 from production.longform_producer import prepare_contract,attach_assets
 from production.longform_renderer import render_contract
@@ -93,27 +94,35 @@ def produce_once(*,channel:str,db_path:str,output_dir:str,voice:str="tr-TR-EmelN
     frames=[];credits=[];music=None
     try:
         synthesize(narration["text"],audio,voice)
-        frames,credits=build_media(subject=subject,scenes=contract["editorial"]["scenes"],
-                                   claims=contract["script"]["verified_claims"],output_dir=directory,
-                                   content_id=contract["content_id"],limit=12)
+        documentary=build_documentary_media(subject=subject,scenes=contract["editorial"]["scenes"],
+                                            claims=contract["script"]["verified_claims"],output_dir=directory,
+                                            content_id=contract["content_id"],channel=channel,target_assets=12)
+        frames=documentary["media"];credits=documentary["credits"]
+        beats=visual_beats(contract["editorial"]["scenes"],len(frames),scene_media=documentary.get("scene_media"))
+
         if os.getenv("LONGFORM_MUSIC_ENABLED","true").casefold() in {"1","true","yes","on"}:
             music=instrumental(directory/f"{contract['content_id']}-bed.wav")
         ready=attach_assets(contract,media=frames,audio=audio,music=music)
+        ready["visual_beats"]=beats
+        ready["media_report"]=documentary["report"]
         output=directory/f"{contract['content_id']}.mp4"
         rendered=render_contract(ready,output,force=force_remotion)
         metadata=dict(contract["metadata"])
         metadata["word_count"]=narration["word_count"]
         metadata["script_provider"]=narration["provider"]
         metadata["renderer"]=rendered["renderer"]
+        metadata["visual_beat_count"]=len(beats)
+        metadata["documentary_media"]=documentary["report"]
         metadata["description"]=_description(str(metadata.get("description") or ""),evidence,credits)
         metadata["source_count"]=len({item.source.casefold() for item in evidence})
         video_path=output.resolve().as_uri() if channel=="viral_futbol" else str(output.resolve())
         with PublishQueue(db_path,channel) as queue:
             queued=queue.enqueue(contract["content_id"],"video",subject,contract["content_hash"],video_path,metadata,
-                                 provider="wikidata+commons")
+                                 provider="wikidata+commons+pexels")
         return {"queued":queued,"content_id":contract["content_id"],"subject":subject,"kind":kind,
                 "video":str(output),"word_count":narration["word_count"],"script_provider":narration["provider"],
-                "renderer":rendered["renderer"],"quality":rendered["quality"]}
+                "renderer":rendered["renderer"],"quality":rendered["quality"],
+                "visual_beat_count":len(beats),"documentary_media":documentary["report"]}
     finally:
         for frame in frames:
             Path(frame).unlink(missing_ok=True)

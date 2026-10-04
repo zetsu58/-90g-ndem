@@ -37,13 +37,21 @@ services:
       - key: MIN_HOURS_BETWEEN_VIDEOS
         value: "12"
       - key: BAMLOOP_LONGFORM_ENABLED
-        value: "false"
+        value: "true"
       - key: BAMLOOP_LONGFORM_INTERVAL_HOURS
         value: "24"
       - key: BAMLOOP_LONGFORM_OUTPUT_DIR
         value: storage/bamloop/longform
       - key: LONGFORM_MIN_EVIDENCE
         value: "10"
+      - key: LONGFORM_MIN_REAL_MEDIA
+        value: "8"
+      - key: LONGFORM_MIN_VIDEO_BROLL
+        value: "2"
+      - key: LONGFORM_MEDIA_TARGET
+        value: "12"
+      - key: LONGFORM_VISUAL_BEAT_SECONDS
+        value: "5.0"
       - key: LONGFORM_MUSIC_ENABLED
         value: "true"
       - key: LONGFORM_RENDER_ONLY_WHEN_SLOT_READY

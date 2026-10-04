@@ -19,11 +19,12 @@ class RemotionMultiFormatBridgeTests(unittest.TestCase):
                 output.write_bytes(b"\x00\x00\x00\x18ftyp"+b"x"*2048)
                 return subprocess.CompletedProcess(cmd,0,"ok","")
             with patch.object(remotion_bridge,"PUBLIC_ROOT",root/"public"), patch("production.remotion_bridge.subprocess.run",side_effect=fake_run) as run:
-                ok=remotion_bridge.render(output=output,title="Test",caption="Caption",duration=210,kind="football",media=[media],content_format="video",scenes=[{"start":0,"duration":18,"caption":"A","mediaIndex":0}],force=True)
+                ok=remotion_bridge.render(output=output,title="Test",caption="Caption",duration=210,kind="football",media=[media],content_format="video",scenes=[{"start":0,"duration":18,"caption":"A","mediaIndex":0,"section":"hook"}],beats=[{"start":0,"duration":5,"mediaIndex":0,"sceneIndex":0}],force=True)
             self.assertTrue(ok)
             self.assertEqual(captured["contentFormat"],"video")
             self.assertEqual(captured["duration"],210)
             self.assertEqual(captured["scenes"][0]["duration"],18)
+            self.assertEqual(captured["beats"][0]["duration"],5)
             self.assertGreaterEqual(run.call_args.kwargs["timeout"],900)
 
     def test_short_remains_default(self):
