@@ -1,5 +1,6 @@
 """Render a verified 3–4 minute documentary through Remotion with FFmpeg fallback."""
 from __future__ import annotations
+import os
 from pathlib import Path
 from production.longform import plan
 from production.longform_metadata import longform_metadata
@@ -8,6 +9,9 @@ from production.remotion_bridge import render
 from production.longform_ffmpeg import render_slideshow
 from production.documentary_post import master_audio, inspect_documentary
 from viral_futbol.youtube_publisher import _validate_video
+
+def low_memory_ffmpeg_enabled()->bool:
+    return os.getenv("LONGFORM_FORCE_FFMPEG","false").casefold() in {"1","true","yes","on"}
 
 def _lower_third(scene:dict)->str:
     text=str(scene.get("narration") or "").strip()
@@ -39,10 +43,15 @@ def render_longform(*, subject:str, channel:str, output:Path, media:list[Path], 
     ]
     caption=_lower_third(editorial["scenes"][0])
     diagnostic={}
-    ok=render(output=output,title=metadata["title"],caption=caption,duration=target_seconds,
-              kind="football" if channel=="viral_futbol" else "explainer",media=media,audio=audio,
-              music=music,content_format="video",scenes=remotion_scenes,beats=visual_beats or [],captions=captions or [],
-              force=force,diagnostic=diagnostic)
+    force_ffmpeg=low_memory_ffmpeg_enabled()
+    if force_ffmpeg:
+        ok=False
+        diagnostic["bypassed"]="low_memory_ffmpeg"
+    else:
+        ok=render(output=output,title=metadata["title"],caption=caption,duration=target_seconds,
+                  kind="football" if channel=="viral_futbol" else "explainer",media=media,audio=audio,
+                  music=music,content_format="video",scenes=remotion_scenes,beats=visual_beats or [],captions=captions or [],
+                  force=force,diagnostic=diagnostic)
     renderer="remotion"
     if not ok:
         render_slideshow(media=media,scenes=editorial["scenes"],audio=audio,output=output,music=music,

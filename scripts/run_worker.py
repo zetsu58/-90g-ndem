@@ -120,12 +120,17 @@ def cycle(progress=None) -> dict:
         result["x"]["failed"] += 1
         print(f"ViralFutbol X newsroom deferred: {exc}", flush=True)
 
-    stage("shorts_scan")
-    try:
-        result["shorts"] = run_once_v2(settings, progress=lambda name: stage(f"shorts:{name}"))
-    except Exception as exc:
-        result["shorts"] = {"error": str(exc)}
-        print(f"ViralFutbol Shorts V2 scan deferred: {exc}", flush=True)
+    skip_force_short=force_pair and os.getenv("VIRAL_FORCE_PAIR_SKIP_SHORT","false").casefold() in {"1","true","yes","on"}
+    if skip_force_short:
+        stage("shorts_scan_skipped")
+        result["shorts"]={"generated_lite":1,"queued":1,"skipped":True,"reason":"force_pair_short_already_generated"}
+    else:
+        stage("shorts_scan")
+        try:
+            result["shorts"] = run_once_v2(settings, progress=lambda name: stage(f"shorts:{name}"))
+        except Exception as exc:
+            result["shorts"] = {"error": str(exc)}
+            print(f"ViralFutbol Shorts V2 scan deferred: {exc}", flush=True)
 
     shorts_ok = isinstance(result.get("shorts"), dict) and "error" not in (result.get("shorts") or {})
     stage("longform")
