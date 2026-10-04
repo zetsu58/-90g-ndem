@@ -3,7 +3,10 @@ from __future__ import annotations
 import json,math,os,re,shutil,subprocess,tempfile
 from pathlib import Path
 
-def master_audio(path:Path,target_lufs:float=-16.0,true_peak:float=-1.5,lra:float=9.0)->dict:
+def master_audio(path:Path,target_lufs:float|None=None,true_peak:float|None=None,lra:float|None=None)->dict:
+    target_lufs=float(os.getenv("LONGFORM_TARGET_LUFS","-16")) if target_lufs is None else float(target_lufs)
+    true_peak=float(os.getenv("LONGFORM_TRUE_PEAK_DBTP","-1.5")) if true_peak is None else float(true_peak)
+    lra=float(os.getenv("LONGFORM_TARGET_LRA","9")) if lra is None else float(lra)
     if not path.exists():
         raise ValueError("mastering_input_missing")
     with tempfile.TemporaryDirectory(prefix="doc-master-") as td:
@@ -68,12 +71,20 @@ def inspect_documentary(path:Path,expected_beats:int,target_seconds:float=210.0)
     visual=_visual_samples(path,interval)
     loudness=_loudness(path)
     expected_samples=max(8,math.floor(target_seconds/interval)-2)
-    min_changes=max(10,min(24,round(expected_beats*0.32)))
+    try:
+        change_ratio=max(0.15,min(0.60,float(os.getenv("LONGFORM_QC_MIN_CHANGE_RATIO","0.32"))))
+    except ValueError:
+        change_ratio=0.32
+    min_changes=max(10,min(28,round(expected_beats*change_ratio)))
     if visual["samples"]<expected_samples:
         raise ValueError(f"documentary_qc_samples:{visual['samples']}/{expected_samples}")
     if visual["detected_visual_changes"]<min_changes:
         raise ValueError(f"documentary_qc_visual_changes:{visual['detected_visual_changes']}/{min_changes}")
-    if visual["dark_samples"]>max(2,round(visual["samples"]*0.08)):
+    try:
+        dark_ratio=max(0.02,min(0.20,float(os.getenv("LONGFORM_QC_MAX_DARK_RATIO","0.08"))))
+    except ValueError:
+        dark_ratio=0.08
+    if visual["dark_samples"]>max(2,round(visual["samples"]*dark_ratio)):
         raise ValueError("documentary_qc_dark_frames")
     if loudness:
         if not -19.5<=loudness["integrated_lufs"]<=-13.0:
