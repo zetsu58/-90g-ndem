@@ -262,6 +262,14 @@ def publish_ready(settings,limit:int=2)->dict:
                     try: quality=_validate_video(video_path, str(json.loads(job['metadata']).get('content_format') or 'short'))
                     except ValueError as exc:
                         result['quality_blocked']+=1; queue.reject(story_id,exc); continue
+                    upload_metadata=json.loads(job['metadata'])
+                    media_credits=[]
+                    if str(upload_metadata.get('content_format') or 'short')!='video':
+                        media_credits=_media_credits(job)
+                        if urllib.parse.urlsplit(str(job['video_path'])).scheme=='file' and len(media_credits)<2:
+                            result['quality_blocked']+=1
+                            queue.reject(story_id,'insufficient_relevant_visual_media')
+                            continue
                     result['validated'].append({'story_id':story_id,**quality})
                     # OAuth errors must not leave unresolvable slot reservations.
                     credentials=_refresh_credentials(config)
@@ -286,9 +294,8 @@ def publish_ready(settings,limit:int=2)->dict:
                             result['skipped']+=1
                             result['skip_reasons']['ledger_unavailable'] = result['skip_reasons'].get('ledger_unavailable', 0) + 1
                             continue
-                    upload_metadata=json.loads(job['metadata'])
-                    if str(upload_metadata.get('content_format') or 'short')!='video':
-                        upload_metadata['media_credits']=_media_credits(job)
+                    if media_credits:
+                        upload_metadata['media_credits']=media_credits
                     video_id=_upload(video_path,upload_metadata,config,credentials=credentials)
                 ledger_warning=None
                 if ledger:

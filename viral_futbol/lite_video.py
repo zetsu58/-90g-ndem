@@ -124,12 +124,14 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
             progress(name)
     directory = Path(output_dir); directory.mkdir(parents=True, exist_ok=True); final_path = directory / f"{story_id}.mp4"
     if final_path.exists() and final_path.stat().st_size > 1024:
-        from .youtube_publisher import _validate_short
+        from .youtube_publisher import _validate_short, _media_credits
         try:
             _validate_short(final_path)
-            return final_path
+            if len(_media_credits({"video_path": final_path.resolve().as_uri()})) >= 2:
+                return final_path
         except (OSError, ValueError, RuntimeError):
-            final_path.unlink(missing_ok=True)
+            pass
+        final_path.unlink(missing_ok=True)
     hook = None
     try:
         db_path = (os.getenv("NEWS_DB_PATH", "") or os.getenv("DB_PATH", "")).strip()
