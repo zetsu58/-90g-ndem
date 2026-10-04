@@ -13,7 +13,8 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
-UA={"User-Agent":"90Gundem-BAMLOOP/2.0 documentary"}
+UA={"User-Agent":"90GundemMediaBot/2.1 (https://viralfutbol.onrender.com/)",
+    "Api-User-Agent":"90GundemMediaBot/2.1 (https://viralfutbol.onrender.com/)"}
 ALLOWED_LICENSE=("cc by","cc0","public domain","pd-")
 UNRELATED_SUBJECTS=("fan boy","supporter","cosplay","video game","football manager","meme")
 
@@ -52,7 +53,7 @@ def _commons(query:str,subject:str,limit:int=6)->list[dict]:
             continue
         meta=info.get("extmetadata") or {}
         license_name=str((meta.get("LicenseShortName") or {}).get("value") or "")
-        if license_name and not any(x in license_name.casefold() for x in ALLOWED_LICENSE):
+        if not any(x in license_name.casefold() for x in ALLOWED_LICENSE):
             continue
         title=str(page.get("title") or "")
         title_tokens=_tokens(title)
@@ -93,7 +94,7 @@ def _commons_video(query:str,subject:str,limit:int=3)->list[dict]:
             continue
         meta=info.get("extmetadata") or {}
         license_name=str((meta.get("LicenseShortName") or {}).get("value") or "")
-        if license_name and not any(x in license_name.casefold() for x in ALLOWED_LICENSE):
+        if not any(x in license_name.casefold() for x in ALLOWED_LICENSE):
             continue
         title=str(page.get("title") or "")
         title_tokens=_tokens(title)
@@ -227,7 +228,7 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
     output_dir.mkdir(parents=True,exist_ok=True)
     target=max(8,target_assets or int(os.getenv("LONGFORM_MEDIA_TARGET","12")))
     min_real=max(6,int(os.getenv("LONGFORM_MIN_REAL_MEDIA","8")))
-    min_video=max(0,int(os.getenv("LONGFORM_MIN_VIDEO_BROLL","2")))
+    min_video=max(0,int(os.getenv("LONGFORM_MIN_VIDEO_BROLL","0" if channel=="viral_futbol" else "2")))
     min_subject_images=max(3,int(os.getenv("LONGFORM_MIN_SUBJECT_IMAGES","3"))) if channel=="viral_futbol" else 0
     max_images=max(1,target-min_video)
     media=[];credits=[];fingerprints=set();urls=set();image_count=0;video_count=0
