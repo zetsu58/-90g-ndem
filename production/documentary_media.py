@@ -17,6 +17,8 @@ UA={"User-Agent":"90GundemMediaBot/2.1 (https://viralfutbol.onrender.com/)",
     "Api-User-Agent":"90GundemMediaBot/2.1 (https://viralfutbol.onrender.com/)"}
 ALLOWED_LICENSE=("cc by","cc0","public domain","pd-")
 UNRELATED_SUBJECTS=("fan boy","supporter","cosplay","video game","football manager","meme")
+CONTEXT_CLUBS=("Fenerbahçe","Real Madrid","Galatasaray","Beşiktaş","Trabzonspor","Barcelona","Liverpool","Manchester City","Bayern Munich","Inter","Milan","Juventus","Arsenal","Chelsea")
+STADIUM_WORDS=("stadium","stadyum","bernabeu","saracoglu","camp nou","anfield","etihad")
 
 def _normalized(value:str)->str:
     plain=unicodedata.normalize("NFKD",str(value).casefold()).encode("ascii","ignore").decode()
@@ -56,6 +58,8 @@ def _commons(query:str,subject:str,limit:int=6)->list[dict]:
         if not any(x in license_name.casefold() for x in ALLOWED_LICENSE):
             continue
         title=str(page.get("title") or "")
+        if "stadium" in query.casefold() and not any(word in _normalized(title) for word in STADIUM_WORDS):
+            continue
         title_tokens=_tokens(title)
         overlap=len(subject_tokens & title_tokens)
         # Subject-specific Commons results must visibly identify the documentary subject.
@@ -229,13 +233,13 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
     target=max(8,target_assets or int(os.getenv("LONGFORM_MEDIA_TARGET","12")))
     min_real=max(6,int(os.getenv("LONGFORM_MIN_REAL_MEDIA","8")))
     min_video=max(0,int(os.getenv("LONGFORM_MIN_VIDEO_BROLL","0" if channel=="viral_futbol" else "2")))
-    min_subject_images=max(3,int(os.getenv("LONGFORM_MIN_SUBJECT_IMAGES","3"))) if channel=="viral_futbol" else 0
+    min_subject_images=max(1,int(os.getenv("LONGFORM_MIN_SUBJECT_IMAGES","1"))) if channel=="viral_futbol" else 0
     max_images=max(1,target-min_video)
-    media=[];credits=[];fingerprints=set();urls=set();image_count=0;video_count=0
+    media=[];credits=[];fingerprints=set();urls=set();image_count=0;subject_image_count=0;video_count=0
     scene_media={str(i):[] for i in range(len(scenes))}
 
-    def add_commons(item:dict)->int|None:
-        nonlocal image_count
+    def add_commons(item:dict,*,subject_photo:bool=True)->int|None:
+        nonlocal image_count,subject_image_count
         if item["url"] in urls or len(media)>=target:
             return None
         raw=output_dir/f"{content_id}-commons-raw-{len(media)}"
@@ -249,6 +253,7 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
                 return None
             fingerprints.add(fingerprint);urls.add(item["url"])
             media.append(final);credits.append(item);image_count+=1
+            if subject_photo: subject_image_count+=1
             return len(media)-1
         except Exception as exc:
             print(f"Documentary Commons asset deferred: {type(exc).__name__}",flush=True)
@@ -270,6 +275,20 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
                     break
         except Exception as exc:
             print(f"Documentary Commons search deferred: {type(exc).__name__}",flush=True)
+
+    # Use verified career teams for contextual stadium footage when the player
+    # has too few distinct licensed portraits. Stadiums are real story locations.
+    if channel=="viral_futbol" and image_count<max_images:
+        verified_text=_normalized(" ".join(claims))
+        for club in CONTEXT_CLUBS:
+            if image_count>=max_images: break
+            if _normalized(club) not in verified_text: continue
+            try:
+                for item in _commons(f"{club} stadium",club,4):
+                    add_commons(item,subject_photo=False)
+                    if image_count>=max_images: break
+            except Exception as exc:
+                print(f"Documentary context search deferred: {type(exc).__name__}",flush=True)
 
     # Prefer subject-specific licensed archival motion from Wikimedia Commons.
     for query in _commons_queries(subject,scenes,claims,channel)[:6]:
@@ -339,10 +358,10 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
         for path in media:
             Path(path).unlink(missing_ok=True)
         raise ValueError(f"documentary_real_media_gate:{len(media)}/{min_real}")
-    if image_count<min_subject_images:
+    if subject_image_count<min_subject_images:
         for path in media:
             Path(path).unlink(missing_ok=True)
-        raise ValueError(f"documentary_subject_media_gate:{image_count}/{min_subject_images}")
+        raise ValueError(f"documentary_subject_media_gate:{subject_image_count}/{min_subject_images}")
     if video_count<min_video:
         for path in media:
             Path(path).unlink(missing_ok=True)
@@ -353,7 +372,7 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
         "credits":credits,
         "scene_media":scene_media,
         "report":{
-            "real_media":len(media),"images":image_count,"videos":video_count,
+            "real_media":len(media),"images":image_count,"subject_images":subject_image_count,"videos":video_count,
             "min_real_media":min_real,"min_video_broll":min_video,"min_subject_images":min_subject_images,"text_cards":0,
             "commons_queries":len(_commons_queries(subject,scenes,claims,channel)),
             "broll_queries":len(_broll_queries(scenes,channel)),
@@ -390,3 +409,4 @@ def visual_beats(scenes:list[dict],media_count:int,beat_seconds:float|None=None,
             })
             last_media=choice;global_index+=1
     return beats
+
