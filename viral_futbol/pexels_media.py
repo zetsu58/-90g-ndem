@@ -9,10 +9,12 @@ import urllib.request
 from pathlib import Path
 from textwrap import wrap
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 CLUBS = ("Galatasaray", "Fenerbahçe", "Beşiktaş", "Trabzonspor", "Başakşehir", "Real Madrid", "Barcelona", "Manchester City", "Manchester United", "Liverpool", "Arsenal", "Chelsea", "Bayern Münih", "Bayern Munich", "Paris Saint-Germain", "PSG", "Juventus", "Inter", "Milan", "Napoli")
 STOP_WORDS = {"son", "dakika", "yeni", "transfer", "futbol", "haber", "gundem", "sicak", "ayrilik", "plani", "yapilacak", "resmi", "aciklama", "iddiasi", "icin"}
+ALLOWED_LICENSE = ("cc by", "cc0", "public domain", "pd-")
+UNRELATED_SUBJECTS = ("fan boy", "supporter", "cosplay", "video game", "fifa 2", "football manager", "montage", "meme")
 
 
 def _font(size: int, bold: bool = False):
@@ -46,18 +48,27 @@ def _story_label(title: str) -> str:
     return "FUTBOL GÜNDEMİ"
 
 
-def _commons_urls(query: str) -> list[tuple[str, str]]:
-    params = urllib.parse.urlencode({"action":"query","generator":"search","gsrsearch":query,"gsrnamespace":"6","gsrlimit":"12","prop":"imageinfo","iiprop":"url|mime|extmetadata","iiurlwidth":"1200","format":"json","origin":"*"})
+def _commons_urls(query: str) -> list[dict]:
+    params = urllib.parse.urlencode({"action":"query","generator":"search","gsrsearch":query,"gsrnamespace":"6","gsrlimit":"24","prop":"imageinfo","iiprop":"url|size|mime|extmetadata","iiurlwidth":"1600","format":"json"})
     request = urllib.request.Request("https://commons.wikimedia.org/w/api.php?" + params, headers={"User-Agent":"90Gundem/1.0 (football shorts)"})
     with urllib.request.urlopen(request, timeout=18) as response: payload = json.loads(response.read())
-    required = [token for token in _normalized(query).split() if len(token)>2 and token not in {"football","logo","player"}]; matches=[]
+    required = " ".join(token for token in _normalized(query).split() if len(token)>2 and token not in {"football","logo","player"}); matches=[]
     for page in (payload.get("query",{}).get("pages",{}) or {}).values():
         info=(page.get("imageinfo") or [{}])[0]
         if not str(info.get("mime") or "").startswith("image/"): continue
+        meta=info.get("extmetadata") or {}
+        license_name=str((meta.get("LicenseShortName") or {}).get("value") or "")
+        if not any(value in license_name.casefold() for value in ALLOWED_LICENSE): continue
+        if min(int(info.get("width") or 0),int(info.get("height") or 0))<600: continue
         page_title=_normalized(str(page.get("title") or ""))
-        if required and not all(token in page_title for token in required): continue
+        if required and required not in page_title: continue
+        if any(term in page_title for term in UNRELATED_SUBJECTS): continue
         url=info.get("thumburl") or info.get("url")
-        if url: matches.append((str(url), str(page.get("title") or query)))
+        if url:
+            artist=re.sub(r"\s+"," ",re.sub(r"<[^>]+>"," ",str((meta.get("Artist") or {}).get("value") or ""))).strip()
+            matches.append({"url":str(url),"title":str(page.get("title") or query),
+                            "artist":artist[:160] or "Wikimedia contributor","license":license_name,
+                            "page":str(info.get("descriptionurl") or "")})
     return matches
 
 
@@ -67,32 +78,40 @@ def _media_score(title: str, media_title: str) -> int:
     for entity in entities:
         tokens=set(entity.split())
         if tokens and tokens.issubset(media): score += 8
+        if len(tokens)>1 and entity in _normalized(media_title): score += 4
     score += min(5, len((story - STOP_WORDS) & media))
-    if any(word in media for word in ("logo","crest","badge","emblem")): score += 2
+    if any(word in media for word in ("logo","crest","badge","emblem")):
+        score -= 2 if any(len(entity.split())>1 for entity in entities) else 1
     return score
 
 
-def _search_relevant(title: str, limit: int) -> list[tuple[str,str]]:
+def _search_relevant(title: str, limit: int) -> list[dict]:
     candidates=[]; club_keys={_normalized(club) for club in CLUBS}
     for entity in _entities(title):
         is_club=_normalized(entity) in club_keys
-        for query in ((f"{entity} logo", f"{entity} football") if is_club else (f"{entity} football", entity)):
+        for query in ((entity, f"{entity} football", f"{entity} logo") if is_club else (entity, f"{entity} football")):
             try:
                 for item in _commons_urls(query):
-                    score=_media_score(title,item[1])
+                    score=_media_score(title,item["title"])
                     if score < 8: continue
-                    candidates.append((score,item[0],item[1]))
-            except Exception as exc: print(f"ViralFutbol Commons search deferred: {type(exc).__name__}: {exc}", flush=True)
+                    candidates.append((score,item))
+            except Exception as exc: print(f"ViralFutbol Commons search deferred: {type(exc).__name__}", flush=True)
     candidates.sort(key=lambda x:x[0], reverse=True); results=[]; seen=set()
-    for _,url,credit in candidates:
-        if url in seen: continue
-        seen.add(url); results.append((url,credit))
+    for _,item in candidates:
+        if item["url"] in seen: continue
+        seen.add(item["url"]); results.append(item)
         if len(results)>=limit: break
     return results
 
 
 def _render_frame(photo_path: Path, output_path: Path, title: str, phrase: str, credit: str, index: int, total: int) -> None:
-    with Image.open(photo_path) as opened: image=ImageOps.fit(opened.convert("RGB"),(1080,1920),method=Image.Resampling.LANCZOS)
+    with Image.open(photo_path) as opened:
+        original=opened.convert("RGB")
+        # Keep the complete subject visible. Landscape news photos otherwise
+        # lose the player when center-cropped into a portrait Short.
+        image=ImageOps.fit(original,(1080,1920),method=Image.Resampling.LANCZOS).filter(ImageFilter.GaussianBlur(48))
+        foreground=ImageOps.contain(original,(1020,1390),method=Image.Resampling.LANCZOS)
+        image.paste(foreground,((1080-foreground.width)//2,(1920-foreground.height)//2-80))
     image=image.convert("RGBA"); shade=Image.new("RGBA",image.size,(0,0,0,0)); draw_shade=ImageDraw.Draw(shade)
     for y in range(1920):
         alpha=150-int(y*.35) if y<260 else (min(225,45+int((y-1090)*.48)) if y>545 else 35); draw_shade.line((0,y,1080,y),fill=(2,8,18,alpha))
@@ -105,8 +124,8 @@ def _render_frame(photo_path: Path, output_path: Path, title: str, phrase: str, 
         except (OSError, ValueError):
             print("ViralFutbol optional logo unavailable", flush=True)
     draw.text((204,80),"SON DAKİKA  •  90+ GÜNDEM",font=_font(36,True),fill="white"); draw.rounded_rectangle((56,1260,680,1360),radius=15,fill=accent); draw.text((96,1288),_story_label(title),font=_font(18,True),fill="#06101c")
-    display_text=title if index==0 else phrase; y=1420
-    for line in _lines(display_text,29,4): draw.text((58,y),line,font=_font(60,True),fill="white",stroke_width=2,stroke_fill="#07111f"); y+=80
+    display_text=title if index==0 else phrase; y=1530
+    for line in _lines(display_text,31,2): draw.text((58,y),line,font=_font(54,True),fill="white",stroke_width=2,stroke_fill="#07111f"); y+=76
     draw.text((60,1800),"90+ Gündem  •  #Futbol #Shorts",font=_font(34,True),fill="#e7edf4")
     if credit and credit!="Pexels": draw.text((840,1816),"CC/Wikimedia",font=_font(22),fill="#c5d1df")
     bar_width=960//max(1,total)
@@ -118,21 +137,24 @@ def download_pexels_frames(*, title: str, narration: str, sources: list[str], ou
     del sources
     media=_search_relevant(title,limit); unique=[]
     for item in media:
-        if item[0] not in {url for url,_ in unique}: unique.append(item)
+        if item["url"] not in {candidate["url"] for candidate in unique}: unique.append(item)
         if len(unique)>=limit: break
-    # Fail closed: if no entity-matched licensed image exists, let the branded
-    # fallback card render instead of inserting unrelated stock footage.
-    if not unique:
-        print(f"ViralFutbol media gate: no relevant licensed image for {title!r}; using branded fallback", flush=True); return []
+    if len(unique)<2:
+        print("ViralFutbol media gate: insufficient relevant licensed imagery", flush=True); return []
     phrases=[part.strip()+("?" if "?" in part else ".") for part in re.split(r"[.!?]+",narration) if part.strip()] or [title]
-    frames=[]; selected=[unique[index%len(unique)] for index in range(max(5,len(unique)))]
-    for index,(url,credit) in enumerate(selected[:limit]):
+    frames=[]; selected=unique[:limit]
+    credits=[]
+    for index,item in enumerate(selected[:limit]):
         raw_path=output_dir/f"{story_id}-media-{index}"; frame_path=output_dir/f"{story_id}-frame-{index}.jpg"
         try:
-            request=urllib.request.Request(url,headers={"User-Agent":"90Gundem/1.0"})
+            request=urllib.request.Request(item["url"],headers={"User-Agent":"90Gundem/2.0 (https://viralfutbol.onrender.com/about)"})
             with urllib.request.urlopen(request,timeout=20) as response: raw=response.read(10_000_001)
             if len(raw)>10_000_000: continue
-            raw_path.write_bytes(raw); _render_frame(raw_path,frame_path,title,phrases[index%len(phrases)],credit,index,len(selected[:limit])); frames.append(frame_path)
-        except Exception as exc: print(f"ViralFutbol relevant image deferred: {type(exc).__name__}: {exc}", flush=True)
+            raw_path.write_bytes(raw); _render_frame(raw_path,frame_path,title,phrases[index%len(phrases)],item["title"],index,len(selected[:limit])); frames.append(frame_path); credits.append(item)
+        except Exception as exc: print(f"ViralFutbol relevant image deferred: {type(exc).__name__}", flush=True)
         finally: raw_path.unlink(missing_ok=True)
+    if len(frames)<2:
+        for frame in frames: frame.unlink(missing_ok=True)
+        return []
+    (output_dir/f"{story_id}-media-credits.json").write_text(json.dumps(credits,ensure_ascii=False),encoding="utf-8")
     return frames
