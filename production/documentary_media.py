@@ -175,6 +175,8 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
     output_dir.mkdir(parents=True,exist_ok=True)
     target=max(8,target_assets or int(os.getenv("LONGFORM_MEDIA_TARGET","12")))
     min_real=max(6,int(os.getenv("LONGFORM_MIN_REAL_MEDIA","8")))
+    min_video=max(0,int(os.getenv("LONGFORM_MIN_VIDEO_BROLL","2")))
+    max_images=max(1,target-min_video)
     media=[];credits=[];fingerprints=set();urls=set();image_count=0;video_count=0
     scene_media={str(i):[] for i in range(len(scenes))}
 
@@ -202,7 +204,7 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
             raw.unlink(missing_ok=True)
 
     for query in _commons_queries(subject,scenes,claims,channel):
-        if len(media)>=target:
+        if image_count>=max_images:
             break
         try:
             for item in _commons(query,subject,4):
@@ -210,14 +212,14 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
                 if media_index is not None:
                     for values in scene_media.values():
                         values.append(media_index)
-                if len(media)>=target:
+                if image_count>=max_images:
                     break
         except Exception as exc:
             print(f"Documentary Commons search deferred: {type(exc).__name__}",flush=True)
 
     # Contextual motion B-roll complements subject-specific archive/still imagery.
     for query in _broll_queries(scenes,channel):
-        if len(media)>=target:
+        if len(media)>=target and video_count>=min_video:
             break
         try:
             rows=_pexels(query,2)
@@ -225,7 +227,7 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
             print(f"Documentary Pexels search deferred: {type(exc).__name__}",flush=True)
             rows=[]
         for item in rows:
-            if not item["url"] or item["url"] in urls or len(media)>=target:
+            if not item["url"] or item["url"] in urls or (len(media)>=target and video_count>=min_video):
                 continue
             final=output_dir/f"{content_id}-broll-{len(media)}.mp4"
             try:
@@ -250,6 +252,10 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
         for path in media:
             Path(path).unlink(missing_ok=True)
         raise ValueError(f"documentary_real_media_gate:{len(media)}/{min_real}")
+    if video_count<min_video:
+        for path in media:
+            Path(path).unlink(missing_ok=True)
+        raise ValueError(f"documentary_motion_media_gate:{video_count}/{min_video}")
 
     return {
         "media":media,
@@ -257,7 +263,7 @@ def build_documentary_media(*,subject:str,scenes:list[dict],claims:list[str],out
         "scene_media":scene_media,
         "report":{
             "real_media":len(media),"images":image_count,"videos":video_count,
-            "min_real_media":min_real,"text_cards":0,
+            "min_real_media":min_real,"min_video_broll":min_video,"text_cards":0,
             "commons_queries":len(_commons_queries(subject,scenes,claims,channel)),
             "broll_queries":len(_broll_queries(scenes,channel)),
         },
