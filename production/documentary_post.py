@@ -76,7 +76,7 @@ def _loudness(path:Path)->dict:
 def _visual_samples(path:Path,interval:float=5.0)->dict:
     width,height=32,18;frame_bytes=width*height
     completed=subprocess.run([
-        "ffmpeg","-v","error","-i",str(path),
+        "ffmpeg","-v","error","-filter_threads","1","-threads","1","-i",str(path),
         "-vf",f"crop=iw:ih*0.70:0:0,fps=1/{max(1.0,interval)},scale={width}:{height},format=gray",
         "-f","rawvideo","-pix_fmt","gray","pipe:1"
     ],capture_output=True,timeout=180,check=True)
@@ -124,3 +124,4 @@ def inspect_documentary(path:Path,expected_beats:int,target_seconds:float=210.0)
         if loudness["true_peak_dbtp"]>-0.5:
             raise ValueError(f"documentary_qc_true_peak:{loudness['true_peak_dbtp']}")
     return {"visual":visual,"audio":loudness,"passed":True}
+
