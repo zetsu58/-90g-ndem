@@ -5,7 +5,7 @@ from pathlib import Path
 
 def _measure_loudnorm(path:Path,target_lufs:float,true_peak:float,lra:float)->dict:
     completed=subprocess.run([
-        "ffmpeg","-hide_banner","-nostats","-i",str(path),
+        "ffmpeg","-hide_banner","-nostats","-threads","1","-filter_threads","1","-i",str(path),"-vn",
         "-af",f"loudnorm=I={target_lufs}:TP={true_peak}:LRA={lra}:print_format=json",
         "-f","null","-"
     ],capture_output=True,text=True,timeout=max(120,int(os.getenv("LONGFORM_MASTER_MEASURE_TIMEOUT_SECONDS","300"))))
@@ -45,7 +45,7 @@ def master_audio(path:Path,target_lufs:float|None=None,true_peak:float|None=None
     with tempfile.TemporaryDirectory(prefix="doc-master-") as td:
         target=Path(td)/"mastered.mp4"
         subprocess.run([
-            "ffmpeg","-y","-loglevel","error","-i",str(path),
+            "ffmpeg","-y","-loglevel","error","-threads","1","-filter_threads","1","-i",str(path),
             "-map","0:v:0","-map","0:a:0","-c:v","copy","-af",af,
             "-c:a","aac","-b:a","192k","-ar","48000","-movflags","+faststart",str(target)
         ],check=True,timeout=max(180,int(os.getenv("LONGFORM_MASTER_TIMEOUT_SECONDS","600"))))
@@ -56,7 +56,7 @@ def master_audio(path:Path,target_lufs:float|None=None,true_peak:float|None=None
 
 def _loudness(path:Path)->dict:
     completed=subprocess.run([
-        "ffmpeg","-hide_banner","-nostats","-i",str(path),
+        "ffmpeg","-hide_banner","-nostats","-threads","1","-filter_threads","1","-i",str(path),"-vn",
         "-af","loudnorm=I=-16:TP=-1.5:LRA=9:print_format=json","-f","null","-"
     ],capture_output=True,text=True,timeout=180)
     stderr=completed.stderr or ""
