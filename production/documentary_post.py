@@ -42,7 +42,7 @@ def _visual_samples(path:Path,interval:float=5.0)->dict:
     width,height=32,18;frame_bytes=width*height
     completed=subprocess.run([
         "ffmpeg","-v","error","-i",str(path),
-        "-vf",f"fps=1/{max(1.0,interval)},scale={width}:{height},format=gray",
+        "-vf",f"crop=iw:ih*0.70:0:0,fps=1/{max(1.0,interval)},scale={width}:{height},format=gray",
         "-f","rawvideo","-pix_fmt","gray","pipe:1"
     ],capture_output=True,timeout=180,check=True)
     raw=completed.stdout or b""
