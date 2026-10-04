@@ -11,18 +11,23 @@ class LongFormProducerTests(unittest.TestCase):
         c=prepare_contract(subject="Konu",channel="bamloop",evidence=evidence())
         self.assertTrue(c["ready_for_assets"]); self.assertFalse(c["ready_for_render"])
         self.assertEqual(c["metadata"]["content_format"],"video")
-    def test_requires_three_media_assets(self):
-        with tempfile.TemporaryDirectory() as td:
-            root=Path(td); a=root/"a.png"; a.write_bytes(b"x"); audio=root/"v.wav"; audio.write_bytes(b"x")
-            with self.assertRaises(ValueError):
-                attach_assets(prepare_contract(subject="Konu",channel="bamloop",evidence=evidence()),media=[a],audio=audio)
-    def test_assets_unlock_render(self):
+
+    def test_requires_documentary_media_density(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); media=[]
-            for i in range(3):
+            for i in range(7):
+                p=root/f"{i}.png";p.write_bytes(b"x");media.append(p)
+            audio=root/"v.wav";audio.write_bytes(b"x")
+            with self.assertRaises(ValueError):
+                attach_assets(prepare_contract(subject="Konu",channel="bamloop",evidence=evidence()),media=media,audio=audio)
+
+    def test_eight_real_media_assets_unlock_render(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); media=[]
+            for i in range(8):
                 p=root/f"{i}.png";p.write_bytes(b"x");media.append(p)
             audio=root/"v.wav";audio.write_bytes(b"x")
             c=attach_assets(prepare_contract(subject="Konu",channel="bamloop",evidence=evidence()),media=media,audio=audio)
-            self.assertTrue(c["ready_for_render"]); self.assertEqual(len(c["media"]),3)
+            self.assertTrue(c["ready_for_render"]); self.assertEqual(len(c["media"]),8)
 
 if __name__=="__main__": unittest.main()
