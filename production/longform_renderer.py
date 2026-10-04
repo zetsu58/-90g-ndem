@@ -10,6 +10,9 @@ from production.longform_ffmpeg import render_slideshow
 from production.documentary_post import master_audio, inspect_documentary
 from viral_futbol.youtube_publisher import _validate_video
 
+def low_memory_ffmpeg_enabled()->bool:
+    return os.getenv("LONGFORM_FORCE_FFMPEG","false").casefold() in {"1","true","yes","on"}
+
 def _lower_third(scene:dict)->str:
     text=str(scene.get("narration") or "").strip()
     if ":" in text:
@@ -40,7 +43,7 @@ def render_longform(*, subject:str, channel:str, output:Path, media:list[Path], 
     ]
     caption=_lower_third(editorial["scenes"][0])
     diagnostic={}
-    force_ffmpeg=os.getenv("LONGFORM_FORCE_FFMPEG","false").casefold() in {"1","true","yes","on"}
+    force_ffmpeg=low_memory_ffmpeg_enabled()
     if force_ffmpeg:
         ok=False
         diagnostic["bypassed"]="low_memory_ffmpeg"
