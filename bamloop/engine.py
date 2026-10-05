@@ -75,12 +75,15 @@ def find_licensed_clip(query: str, api_key: str) -> tuple[str, str]:
             width = int(file.get("width") or 0)
             height = int(file.get("height") or 0)
             link = str(file.get("link") or "")
-            if link and height >= width and height >= 720:
+            # Decode a bounded source as well as bounding the reverse buffer.
+            # Selecting the largest 4K variant can exhaust a 512 MiB service
+            # before the output scaler is reached.
+            if link and 720 <= width <= 1080 and 1280 <= height <= 1920 and height > width:
                 candidates.append((height, link, f"{creator} — {page_url}"))
     if not candidates:
         raise RuntimeError(f"No portrait Pexels video found for: {query}")
-    candidates.sort(reverse=True)
-    _, url, attribution = candidates[min(2, len(candidates) - 1)]
+    candidates.sort(key=lambda candidate: abs(candidate[0] - 1280))
+    _, url, attribution = candidates[0]
     return url, attribution
 
 
@@ -183,4 +186,3 @@ def build_video(
         "loop": "ping-pong",
         "cached": False,
     }
-

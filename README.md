@@ -18,6 +18,8 @@ Free Render profili iki BAMLOOP render türünde de 720×1280 kullanır. Ping-po
 klipte reverse öncesi kare tamponu 15 fps ile sınırlanır; çıktı 30 fps'dir.
 Decoder/encoder tek thread çalışır. Bu, 1080p reverse tamponunun 512 MiB
 servisi OOM ile yeniden başlatmasını önlemek için uygulanmıştır.
+Pexels kaynak seçimi de 720p–1080p dikey dosyalarla sınırlıdır; 4K kaynaklar
+decoder belleğini aşmaması için seçilmez ve 720p sürüm tercih edilir.
 
 Uzun video üretimi, force-pair komutu ve upload kapısı Shorts politikası tarafından
 engellenir. Kuyruktaki eski uzun videolar dosyaları silinmeden `format_disabled`
