@@ -9,6 +9,9 @@ class WorkDecision:
     reason:str
 
 def decide(now=None,last_longform_at=None,longform_enabled=None,interval_hours=None):
+    from production.publishing_policy import shorts_only
+    if shorts_only():
+        return WorkDecision(True,False,"shorts_only_policy")
     now=time.time() if now is None else now
     enabled=(os.getenv("LONGFORM_ENABLED","false").lower() in ("1","true","yes","on")) if longform_enabled is None else longform_enabled
     if not enabled:

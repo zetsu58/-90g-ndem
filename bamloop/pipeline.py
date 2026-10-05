@@ -20,6 +20,10 @@ from production.longform_runtime import last_activity as last_longform_activity,
 
 
 def db_path():
+    from production.publishing_policy import unified_channel
+    if unified_channel():
+        from viral_futbol.config import Settings
+        return os.getenv('NEWS_DB_PATH') or Settings().db_path
     return os.getenv('MEME_DB_PATH') or str(Path(os.getenv('MEME_OUTPUT_DIR','storage/bamloop'))/'bamloop.sqlite3')
 
 
@@ -134,7 +138,8 @@ def publish_pending():
             queue.published(job['content_id'],video_id)
             try:
                 from production.youtube_auth import verify_public_upload
-                public_verified=verify_public_upload(credentials,video_id) if os.getenv('MEME_YOUTUBE_PRIVACY_STATUS','private').casefold()=='public' else False
+                from production.publishing_policy import bamloop_env
+                public_verified=verify_public_upload(credentials,video_id) if bamloop_env('PRIVACY_STATUS','private').casefold()=='public' else False
             except Exception:
                 public_verified=False
             return {'uploaded':1,'video_id':video_id,'public_verified':public_verified,

@@ -75,6 +75,8 @@ def _description(base:str,evidence:list,credits:list[dict])->str:
     return "\n\n".join(parts)[:4800]
 
 def produce_once(*,channel:str,db_path:str,output_dir:str,voice:str="tr-TR-EmelNeural",force_remotion:bool=False)->dict:
+    from production.publishing_policy import require_format
+    require_format("video")
     directory=Path(output_dir);directory.mkdir(parents=True,exist_ok=True)
     now=time.time()
     if os.getenv("LONGFORM_RENDER_ONLY_WHEN_SLOT_READY","true").casefold() in {"1","true","yes","on"}:

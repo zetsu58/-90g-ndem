@@ -84,6 +84,8 @@ class GitHubLedger:
         return datetime.fromtimestamp(now, self.timezone).strftime('%Y-%m-%d')
 
     def _slots(self, channel: str, now: float) -> list[dict]:
+        from production.publishing_policy import capacity_channel
+        channel = capacity_channel(channel)
         day = datetime.fromtimestamp(now, self.timezone)
         previous = datetime.fromtimestamp(now - 86400, self.timezone)
         entries = []
@@ -108,6 +110,8 @@ class GitHubLedger:
             raise LedgerError('Unknown publishing channel')
         if content_format not in {'short', 'video'}:
             raise LedgerError('Unknown content format')
+        from production.publishing_policy import require_format, capacity_channel
+        require_format(content_format)
         if self.exists(channel, content_id):
             return False
         now = time.time()
@@ -131,7 +135,7 @@ class GitHubLedger:
         self._request('PUT', self._item_path(channel, content_id), payload)
         # Reserve the slot before attempting the external upload. An index write
         # failure leaves the item reserved, preventing replay after restart.
-        marker = f'publish-ledger/{channel}/days/{day}/{now:.3f}-{content_format}-{key}.json'
+        marker = f'publish-ledger/{capacity_channel(channel)}/days/{day}/{now:.3f}-{content_format}-{key}.json'
         self._request('PUT', marker, payload)
         return True
 

@@ -211,6 +211,8 @@ def _refresh_credentials(config:YouTubeConfig):
 
 
 def _upload(path:Path,job:dict,config:YouTubeConfig,*,credentials=None)->str:
+    from production.publishing_policy import require_format
+    require_format(str(job.get("content_format") or "short"))
     from google_auth_httplib2 import AuthorizedHttp
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload

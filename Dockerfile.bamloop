@@ -19,7 +19,7 @@ RUN python -m compileall -q /app/viral_futbol /app/bamloop /app/production /app/
     && mkdir -p /data/bamloop \
     && chown -R app:app /app /data
 USER app
-ENV PORT=8080 MEME_OUTPUT_DIR=/data/bamloop MEME_INTERVAL_SECONDS=14400
+ENV PORT=8080 MEME_OUTPUT_DIR=/data/bamloop MEME_INTERVAL_SECONDS=14400 SHORTS_ONLY_MODE=true BAMLOOP_STANDALONE_ENABLED=false
 EXPOSE 8080
 CMD ["python", "-m", "bamloop.service"]
 

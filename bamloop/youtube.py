@@ -6,16 +6,17 @@ import httplib2
 from functools import partial
 from pathlib import Path
 from production.youtube_auth import SCOPES, authorized_client, channel_preflight
+from production.publishing_policy import bamloop_env, require_format
 
 
 def _enabled() -> bool:
-    return os.getenv("MEME_YOUTUBE_ENABLED", "false").casefold() in {"1", "true", "yes", "on"}
+    return bamloop_env("ENABLED", "false").casefold() in {"1", "true", "yes", "on"}
 
 
 def credentials_ready() -> bool:
     return _enabled() and all(
-        os.getenv(name, "").strip()
-        for name in ("MEME_YOUTUBE_CLIENT_ID", "MEME_YOUTUBE_CLIENT_SECRET", "MEME_YOUTUBE_REFRESH_TOKEN")
+        bamloop_env(name)
+        for name in ("CLIENT_ID", "CLIENT_SECRET", "REFRESH_TOKEN")
     )
 
 
@@ -28,10 +29,10 @@ def refresh_credentials():
 
     credentials = Credentials(
         token=None,
-        refresh_token=os.environ["MEME_YOUTUBE_REFRESH_TOKEN"].strip(),
+        refresh_token=bamloop_env("REFRESH_TOKEN"),
         token_uri="https://oauth2.googleapis.com/token",
-        client_id=os.environ["MEME_YOUTUBE_CLIENT_ID"].strip(),
-        client_secret=os.environ["MEME_YOUTUBE_CLIENT_SECRET"].strip(),
+        client_id=bamloop_env("CLIENT_ID"),
+        client_secret=bamloop_env("CLIENT_SECRET"),
         scopes=SCOPES,
     )
     credentials.refresh(partial(Request(), timeout=30))
@@ -39,10 +40,11 @@ def refresh_credentials():
 
 
 def verify_channel(credentials):
-    return channel_preflight(credentials, os.getenv('MEME_YOUTUBE_EXPECTED_CHANNEL_ID','').strip())
+    return channel_preflight(credentials, bamloop_env('EXPECTED_CHANNEL_ID'))
 
 
 def upload(path: Path, metadata: dict, *, credentials=None) -> str:
+    require_format(str(metadata.get("content_format") or "short"))
     if not credentials_ready():
         raise RuntimeError("BAMLOOP YouTube credentials are not configured")
     from google_auth_httplib2 import AuthorizedHttp
@@ -52,7 +54,7 @@ def upload(path: Path, metadata: dict, *, credentials=None) -> str:
     if credentials is None:
         credentials = refresh_credentials()
     youtube = authorized_client(credentials)
-    privacy = os.getenv("MEME_YOUTUBE_PRIVACY_STATUS", "private").casefold()
+    privacy = bamloop_env("PRIVACY_STATUS", "private").casefold()
     if privacy not in {"private", "unlisted", "public"}:
         privacy = "private"
     request = youtube.videos().insert(

@@ -6,6 +6,12 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      - key: UNIFIED_YOUTUBE_CHANNEL
+        value: "true"
+      - key: SHORTS_ONLY_MODE
+        value: "true"
+      - key: MEME_INTERVAL_SECONDS
+        value: "14400"
       - key: REMOTION_ENABLED
         value: "false"
       - key: REMOTION_TIMEOUT_SECONDS
@@ -47,11 +53,15 @@ services:
       - key: CHANNEL_TIMEZONE
         value: Europe/Istanbul
       - key: MAX_VIDEOS_PER_DAY
-        value: "1"
+        value: "0"
       - key: MIN_HOURS_BETWEEN_VIDEOS
         value: "12"
       - key: VIRAL_LONGFORM_ENABLED
-        value: "true"
+        value: "false"
+      - key: BAMLOOP_LONGFORM_ENABLED
+        value: "false"
+      - key: LONGFORM_ENABLED
+        value: "false"
       - key: VIRAL_LONGFORM_INTERVAL_HOURS
         value: "24"
       - key: VIRAL_LONGFORM_OUTPUT_DIR
@@ -101,9 +111,9 @@ services:
       - key: SMART_PUBLISH_SCHEDULING
         value: "true"
       - key: YOUTUBE_ENABLED
-        value: "false"
+        value: "true"
       - key: YOUTUBE_PRIVACY_STATUS
-        value: private
+        value: public
       - key: YOUTUBE_CLIENT_ID
         sync: false
       - key: YOUTUBE_CLIENT_SECRET

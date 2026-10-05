@@ -65,7 +65,8 @@ def cycle(progress=None) -> dict:
     settings = Settings()
     stage("trend_gate")
     longform_enabled=os.getenv('VIRAL_LONGFORM_ENABLED',os.getenv('LONGFORM_ENABLED','false')).casefold() in {'1','true','yes','on'}
-    force_pair=_force_pair_pending(settings.db_path)
+    from production.publishing_policy import shorts_only, unified_channel
+    force_pair=not shorts_only() and _force_pair_pending(settings.db_path)
     try: longform_interval=float(os.getenv('VIRAL_LONGFORM_INTERVAL_HOURS',os.getenv('LONGFORM_INTERVAL_HOURS','24')))
     except ValueError: longform_interval=24.0
     format_decision = decide_formats(last_longform_at=last_longform_activity(settings.db_path,'viral_futbol'),longform_enabled=(longform_enabled or force_pair),interval_hours=longform_interval)
@@ -180,6 +181,13 @@ def cycle(progress=None) -> dict:
         result["performance"] = {"error": str(exc), "deferred": True}
         print(f"ViralFutbol performance collector deferred: {exc}", flush=True)
 
+    if unified_channel():
+        stage("bamloop_shorts")
+        try:
+            from production.unified_worker import run_bamloop
+            result["bamloop"] = run_bamloop()
+        except Exception as exc:
+            result["bamloop"] = {"error": type(exc).__name__}
     stage("done")
     return result
 

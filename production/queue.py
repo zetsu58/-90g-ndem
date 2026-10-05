@@ -68,6 +68,9 @@ class PublishQueue:
         return "video" if metadata.get("content_format")=="video" or row["content_type"]=="video" else "short"
 
     def next_slot(self, now=None, content_format="short"):
+        from production.publishing_policy import shorts_only, unified_channel
+        if shorts_only() and content_format != "short":
+            return None
         now = time.time() if now is None else now
         start, end = self._local_day(now)
         is_longform = content_format == "video"
@@ -75,9 +78,9 @@ class PublishQueue:
         spacing = max(0, float(os.getenv('MIN_HOURS_BETWEEN_VIDEOS','12') if is_longform else os.getenv('MIN_HOURS_BETWEEN_SHORTS','3'))) * 3600
         rows = self.db.execute(
             "SELECT content_type,metadata,published_at,scheduled_at,upload_state FROM publish_queue "
-            "WHERE channel=? AND (published_at>=? OR (upload_state IN ('uploading','uncertain') AND scheduled_at>=?)) "
+            "WHERE channel IN (?,?) AND (published_at>=? OR (upload_state IN ('uploading','uncertain') AND scheduled_at>=?)) "
             "ORDER BY COALESCE(published_at,scheduled_at)",
-            (self.channel,start,start),
+            (self.channel, ('bamloop' if self.channel == 'viral_futbol' else 'viral_futbol') if unified_channel() and self.channel in {'viral_futbol','bamloop'} else self.channel,start,start),
         ).fetchall()
         same_format=[row for row in rows if self._format_of(row)==content_format]
         occupied=[float(row['published_at'] or row['scheduled_at']) for row in same_format]
@@ -108,6 +111,13 @@ class PublishQueue:
         now=time.time() if now is None else now
         self.db.execute('BEGIN IMMEDIATE')
         try:
+            from production.publishing_policy import shorts_only
+            if shorts_only():
+                # Keep disabled videos and their files for review; do not consume
+                # retries or let old long-form entries hide eligible Shorts.
+                for pending in self.db.execute("SELECT * FROM publish_queue WHERE channel=? AND upload_state IN ('queued','failed')", (self.channel,)).fetchall():
+                    if self._format_of(pending) == "video":
+                        self.db.execute("UPDATE publish_queue SET upload_state='format_disabled',last_error='shorts_only_policy' WHERE channel=? AND content_id=?", (self.channel,pending['content_id']))
             self.db.execute(
                 "UPDATE publish_queue SET upload_state='uncertain',last_error='upload interrupted; reconcile YouTube before retry' "
                 "WHERE channel=? AND upload_state='uploading' AND scheduled_at<?",

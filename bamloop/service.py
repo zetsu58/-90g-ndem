@@ -154,10 +154,14 @@ class Handler(BaseHTTPRequestHandler):
                     snapshot['github_ledger_required']=ledger_required()
                     snapshot['github_ledger_ready']=ledger_ready() if ledger_required() else False
                     snapshot['publishing_ready']=credentials_ready() and publishing_storage_ready(db_path()) and (not ledger_required() or ledger_ready())
+                    snapshot['worker_enabled']=os.getenv('BAMLOOP_STANDALONE_ENABLED','true').casefold() in {'1','true','yes','on'}
+                    snapshot['publishing_ready']=snapshot['publishing_ready'] and snapshot['worker_enabled']
                     if snapshot.get('last_upload_error_type') == 'RefreshError':
                         snapshot['publishing_ready'] = False
                     snapshot['persistence_blocked']=snapshot['youtube_enabled'] and not publishing_storage_ready(db_path())
-                    snapshot['longform_enabled']=os.getenv('BAMLOOP_LONGFORM_ENABLED',os.getenv('LONGFORM_ENABLED','false')).casefold() in {'1','true','yes','on'}
+                    from production.publishing_policy import shorts_only
+                    snapshot['shorts_only_mode']=shorts_only()
+                    snapshot['longform_enabled']=not shorts_only() and os.getenv('BAMLOOP_LONGFORM_ENABLED',os.getenv('LONGFORM_ENABLED','false')).casefold() in {'1','true','yes','on'}
                     snapshot['longform_interval_hours']=os.getenv('BAMLOOP_LONGFORM_INTERVAL_HOURS',os.getenv('LONGFORM_INTERVAL_HOURS','24'))
             except Exception:
                 snapshot['db_persistence_ready']=False
@@ -179,7 +183,10 @@ def _publish_ready() -> bool:
 def main() -> None:
     port = int(os.getenv("PORT", "8080"))
     _set(status="idle")
-    threading.Thread(target=worker, daemon=True, name="bamloop-worker").start()
+    if os.getenv("BAMLOOP_STANDALONE_ENABLED", "true").casefold() in {"1", "true", "yes", "on"}:
+        threading.Thread(target=worker, daemon=True, name="bamloop-worker").start()
+    else:
+        _set(status="standby", worker_enabled=False, merged_into="viral_futbol")
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
 
 

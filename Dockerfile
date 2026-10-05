@@ -20,7 +20,7 @@ RUN python -m compileall -q /app/viral_futbol /app/bamloop /app/production /app/
     && mkdir -p /data \
     && chown -R app:app /app /data
 USER app
-ENV PORT=8080 NEWS_AUTOSTART_WORKER=true PYTHONUNBUFFERED=1
+ENV PORT=8080 NEWS_AUTOSTART_WORKER=true PYTHONUNBUFFERED=1 UNIFIED_YOUTUBE_CHANNEL=true SHORTS_ONLY_MODE=true YOUTUBE_ENABLED=true YOUTUBE_PRIVACY_STATUS=public
 EXPOSE 8080
 CMD ["python", "-m", "viral_futbol.web"]
 

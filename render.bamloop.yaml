@@ -6,6 +6,10 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      - key: BAMLOOP_STANDALONE_ENABLED
+        value: "false"
+      - key: SHORTS_ONLY_MODE
+        value: "true"
       - key: REMOTION_ENABLED
         value: "false"
       - key: REMOTION_SMOKE_ON_START
@@ -33,11 +37,13 @@ services:
       - key: CHANNEL_TIMEZONE
         value: Europe/Istanbul
       - key: MAX_VIDEOS_PER_DAY
-        value: "1"
+        value: "0"
       - key: MIN_HOURS_BETWEEN_VIDEOS
         value: "12"
       - key: BAMLOOP_LONGFORM_ENABLED
-        value: "true"
+        value: "false"
+      - key: LONGFORM_ENABLED
+        value: "false"
       - key: BAMLOOP_LONGFORM_INTERVAL_HOURS
         value: "24"
       - key: BAMLOOP_LONGFORM_OUTPUT_DIR

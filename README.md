@@ -1,5 +1,27 @@
 # 90+ Gündem — ViralFutbol + BAMLOOP
 
+## Tek kanal / yalnız Shorts — 5 Ekim 2026
+
+Production profili `UNIFIED_YOUTUBE_CHANNEL=true` ve `SHORTS_ONLY_MODE=true` kullanır.
+ViralFutbol servisi futbol ve BAMLOOP üreticilerini aynı cycle lock altında sırayla
+çalıştırır. İkisi de `YOUTUBE_*` yetkisini ve `YOUTUBE_EXPECTED_CHANNEL_ID` kanalını
+kullanır; BAMLOOP'un eski `MEME_YOUTUBE_*` yetkisine geri dönüş yapılmaz.
+Yerel kuyruk aynı `NEWS_DB_PATH` veritabanını, ledger günlük slotları aynı
+`viral_futbol` kanalını paylaşır. Kaynakların item kayıtları tekrar koruması için
+korunur. Günlük 5 Shorts ve en az 3 saat aralık, iki kaynağın toplamına uygulanır.
+
+Uzun video üretimi, force-pair komutu ve upload kapısı Shorts politikası tarafından
+engellenir. Kuyruktaki eski uzun videolar dosyaları silinmeden `format_disabled`
+durumuna alınır. Ayrı BAMLOOP servisi `BAMLOOP_STANDALONE_ENABLED=false` ile
+standby çalışır. Eski BAMLOOP kuyruğu otomatik olarak yeni kanala taşınmaz.
+
+Mevcut Render servislerinde ortam değişkenleri Docker varsayılanlarını geçersiz
+kılabilir. Canlı ayarlarda birleşik mod/Shorts bayrakları, `YOUTUBE_ENABLED=true`,
+`YOUTUBE_PRIVACY_STATUS=public`, iki longform bayrağı `false` ve ayrı BAMLOOP
+worker bayrağı `false` uygulanmalı, iki servis de aynı commit'e deploy edilmelidir.
+Gerçek PUBLIC yayın ancak OAuth/kanal ön kontrolü ve normal production upload
+sonrası doğrulanabilir; aşağıdaki tarihli eski durum kayıtları canlı başarı kanıtı değildir.
+
 Otomatik kısa video üretim ve yayın altyapısı. Repository iki bağımsız production hattı içerir:
 
 - **ViralFutbol:** güncel futbol haberlerini keşfeder, puanlar, kısa senaryo/sahne planı oluşturur, FFmpeg ile 9:16 video üretir ve YouTube yayın kuyruğuna alır.
