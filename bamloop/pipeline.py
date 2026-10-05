@@ -28,6 +28,9 @@ def db_path():
 
 
 def select_type(recent):
+    from .meme_catalog import reaction_mode
+    if reaction_mode():
+        return 'meme'
     meme=max(0,int(os.getenv('BAMLOOP_MEME_WEIGHT','1')))
     story=max(0,int(os.getenv('BAMLOOP_AI_STORY_WEIGHT','1')))
     if not meme + story: raise ValueError('At least one content weight must be positive')
@@ -43,6 +46,21 @@ def prepare(*, source_url=None, voice_fixture=None):
     with PublishQueue(db_path(),'bamloop') as queue:
         ledger=GitHubLedger() if ledger_required() else None
         recent=queue.recent(30)
+        from .meme_catalog import reaction_mode, catalog, content_id as reviewed_id
+        if reaction_mode():
+            from .reaction_meme import build_reaction_video
+            # A new caption must not recycle the same source clip after restart.
+            for clip in catalog():
+                content_id = reviewed_id(clip)
+                if any(row['content_id'] == content_id for row in recent):
+                    continue
+                if ledger and ledger.exists('bamloop', content_id):
+                    continue
+                video, metadata = build_reaction_video(clip, os.getenv('MEME_OUTPUT_DIR','storage/bamloop'))
+                queued = queue.enqueue(content_id, 'meme', clip['title'], clip['sha256'], video, metadata, 'reviewed_clip')
+                return {'content_id':content_id, 'content_type':'meme', 'queued':queued,
+                        'video':str(video), 'meme_contract':metadata['meme_contract'], 'clip_id':clip['id']}
+            return {'deferred':True, 'reason':'reviewed_meme_catalog_exhausted', 'reviewed_clips':len(catalog())}
         kind=select_type(recent)
         # Meme clips require a licensed source. Keep producing original stories
         # when the clip provider is unavailable instead of failing the cycle.
@@ -92,6 +110,8 @@ def prepare(*, source_url=None, voice_fixture=None):
 
 def publish_pending():
     with PublishQueue(db_path(),'bamloop') as queue:
+        from .meme_catalog import quarantine_legacy, require_reviewed_meme
+        quarantine_legacy(queue)
         if not credentials_ready(): return {'uploaded':0,'ready':False,**queue.counts()}
         if not publishing_storage_ready(db_path()) or (ledger_required() and not ledger_ready()):
             return {'uploaded':0,'ready':False,'persistence_blocked':not publishing_storage_ready(db_path()),
@@ -103,6 +123,7 @@ def publish_pending():
         video_id = None
         try:
             job_metadata=json.loads(job['metadata'])
+            require_reviewed_meme(job_metadata)
             _validate_video(Path(job['video_path']),str(job_metadata.get('content_format') or 'short'))
         except (ValueError,OSError) as exc:
             queue.reject(job['content_id'],str(exc))

@@ -95,6 +95,7 @@ class ProductionTests(unittest.TestCase):
         from bamloop.story import LocalStoryProvider
         story = LocalStoryProvider().create('fallback-fixture')
         env = {'MEME_DB_PATH': self.db, 'MEME_OUTPUT_DIR': self.temp.name,
+               'BAMLOOP_CONTENT_MODE': 'mixed',
                'PEXELS_API_KEY': '', 'BAMLOOP_MEME_WEIGHT': '1',
                'BAMLOOP_AI_STORY_WEIGHT': '1'}
         with patch.dict(os.environ, env), \
@@ -124,6 +125,7 @@ class ProductionTests(unittest.TestCase):
     def test_direct_bamloop_publishes_only_real_video_id(self):
         from bamloop.pipeline import publish_pending
         env={'MEME_DB_PATH':self.db,'PUBLISH_DIRECT_ENABLED':'true',
+             'BAMLOOP_CONTENT_MODE':'mixed',
              'SMART_PUBLISH_SCHEDULING':'false','MIN_HOURS_BETWEEN_SHORTS':'0'}
         with patch.dict(os.environ,env), PublishQueue(self.db,'bamloop') as queue:
             self.enqueue(queue,'bam-direct')
@@ -139,7 +141,7 @@ class ProductionTests(unittest.TestCase):
 
     def test_bamloop_refresh_failure_does_not_reserve_ledger(self):
         from bamloop.pipeline import publish_pending
-        with patch.dict(os.environ, {'MEME_DB_PATH':self.db,'PUBLISH_DIRECT_ENABLED':'true'}), \
+        with patch.dict(os.environ, {'MEME_DB_PATH':self.db,'PUBLISH_DIRECT_ENABLED':'true','BAMLOOP_CONTENT_MODE':'mixed'}), \
              PublishQueue(self.db,'bamloop') as queue:
             self.enqueue(queue,'oauth-failure')
             with patch('bamloop.pipeline.credentials_ready',return_value=True), \

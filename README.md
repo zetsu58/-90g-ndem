@@ -14,12 +14,20 @@ kaynak için ayrı uygulanır; aynı turda iki kaynağın birer Short'u yayınla
 BAMLOOP üretim aralığı `MEME_INTERVAL_SECONDS=10800` kullanır. Kota üst sınırdır;
 haber bulunması, kalite kontrolü ve OAuth başarısı gerçek yayın sayısını belirler.
 
-Free Render profili iki BAMLOOP render türünde de 720×1280 kullanır. Ping-pong
-klipte reverse öncesi kare tamponu 15 fps ile sınırlanır; çıktı 30 fps'dir.
-Decoder/encoder tek thread çalışır. Bu, 1080p reverse tamponunun 512 MiB
-servisi OOM ile yeniden başlatmasını önlemek için uygulanmıştır.
-Pexels kaynak seçimi de 720p–1080p dikey dosyalarla sınırlıdır; 4K kaynaklar
-decoder belleğini aşmaması için seçilmez ve 720p sürüm tercih edilir.
+BAMLOOP production içerik modu `reaction_meme` kullanır: Türkçe durum yazısı,
+görüntüde gerçekten gerçekleşen komik olay, tepki yakın planı, özgün ses efekti
+ve kısa tekrar. Rastgele Pexels aramasının ilk sonucu ve ileri–geri döngü bu
+modda kullanılmaz; AI hikâyeye otomatik geçiş yapılmaz. İncelenmiş olay zamanları,
+kaynak SHA-256 ve lisans/atıf `bamloop/meme_clips.json` içinde kayıtlıdır.
+Yeni klip eklenmeden önce olayın tamamı görsel olarak incelenmelidir; eski
+stok/story kuyruk işleri dosyaları silinmeden `quality_blocked` durumuna alınır.
+Kaynak içeriği değişirse yeniden inceleme yapılmadan render edilmez.
+Free Render çıktısı 720×1280, 30 fps; decoder/encoder tek thread çalışır ve
+reverse kare tamponu kullanılmaz. Lisans ve uyarlama bilgisi YouTube açıklamasındadır.
+İlk katalog kapı açan kedi klibinden oluşur. Aynı kaynak bir kez yayınlanır;
+katalog biterse `reviewed_meme_catalog_exhausted` ile beklenir. Günlük 5 BAMLOOP
+hedefi için havuzun yeni, incelenmiş komik kliplerle düzenli genişletilmesi gerekir;
+kota doldurmak için stok video veya aynı klip tekrar yayınlanmaz.
 
 Uzun video üretimi, force-pair komutu ve upload kapısı Shorts politikası tarafından
 engellenir. Kuyruktaki eski uzun videolar dosyaları silinmeden `format_disabled`

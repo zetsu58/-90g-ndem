@@ -130,6 +130,7 @@ def public_status() -> dict:
             "min_hours_between_shorts": float(os.getenv('MIN_HOURS_BETWEEN_SHORTS','3')),
             "content_sources": ["viral_futbol", "bamloop"] if unified_channel() else ["viral_futbol"],
             "shorts_only_mode": shorts_only(),
+            "bamloop_content_mode": os.getenv("BAMLOOP_CONTENT_MODE", "reaction_meme"),
             "longform_enabled": not shorts_only() and os.getenv("VIRAL_LONGFORM_ENABLED",os.getenv("LONGFORM_ENABLED","false")).casefold() in {"1","true","yes","on"},
             "longform_interval_hours": os.getenv("VIRAL_LONGFORM_INTERVAL_HOURS",os.getenv("LONGFORM_INTERVAL_HOURS","24")),
             "release_ready": (not settings.dry_run) and youtube.ready and publishing_storage_ready(settings.db_path) and (not ledger_required() or ledger_ready()),

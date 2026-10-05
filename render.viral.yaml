@@ -6,6 +6,8 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      - key: BAMLOOP_CONTENT_MODE
+        value: reaction_meme
       - key: UNIFIED_YOUTUBE_CHANNEL
         value: "true"
       - key: SHORTS_ONLY_MODE

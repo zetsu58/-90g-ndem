@@ -21,3 +21,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["viral_futbol*", "bamloop*", "production*", "scripts*"]
+
+[tool.setuptools.package-data]
+bamloop = ["meme_clips.json"]

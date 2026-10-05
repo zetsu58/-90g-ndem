@@ -45,6 +45,8 @@ def verify_channel(credentials):
 
 def upload(path: Path, metadata: dict, *, credentials=None) -> str:
     require_format(str(metadata.get("content_format") or "short"))
+    from .meme_catalog import require_reviewed_meme
+    require_reviewed_meme(metadata)
     if not credentials_ready():
         raise RuntimeError("BAMLOOP YouTube credentials are not configured")
     from google_auth_httplib2 import AuthorizedHttp
