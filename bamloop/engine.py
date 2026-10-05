@@ -139,27 +139,29 @@ def build_video(
     caption_path = _escape_drawtext_path(caption_file)
     video_filter = (
         "[0:v]trim=start=0:end=6,setpts=PTS-STARTPTS,"
-        "scale=1080:1920:force_original_aspect_ratio=increase,"
-        "crop=1080:1920,eq=contrast=1.08:saturation=1.18:brightness=0.02,"
-        "fps=30,split=2[forward][backward];"
+        "scale=720:1280:force_original_aspect_ratio=increase,"
+        "crop=720:1280,eq=contrast=1.08:saturation=1.18:brightness=0.02,"
+        # reverse buffers the entire six-second clip. Bound the stored frames
+        # before the split; 1080p at 30 fps exceeds Render's 512 MiB limit.
+        "fps=15,format=yuv420p,split=2[forward][backward];"
         "[backward]reverse[reverse];"
-        "[forward][reverse]concat=n=2:v=1:a=0,"
+        "[forward][reverse]concat=n=2:v=1:a=0,fps=30,"
         "drawtext=fontfile="
         f"{font}:textfile='{caption_path}':reload=0:"
-        "fontcolor=white:fontsize=64:borderw=5:bordercolor=black:"
-        "box=1:boxcolor=black@0.62:boxborderw=22:"
-        "x=(w-text_w)/2:y=110:line_spacing=12,"
+        "fontcolor=white:fontsize=43:borderw=3:bordercolor=black:"
+        "box=1:boxcolor=black@0.62:boxborderw=15:"
+        "x=(w-text_w)/2:y=74:line_spacing=8,"
         "fade=t=in:st=0:d=0.10,fade=t=out:st=11.90:d=0.10,format=yuv420p[v]"
     )
     music = os.getenv('BAMLOOP_MUSIC_FILE','')
     music_path = Path(music) if music and Path(music).is_file() else instrumental(directory/'original-bed.wav')
     pending = directory / f"bamloop-{key}.pending.mp4"
     command = [
-        "ffmpeg", "-y", "-loglevel", "error", "-filter_complex_threads", "1", "-i", str(source),
+        "ffmpeg", "-y", "-loglevel", "error", "-filter_complex_threads", "1", "-threads", "1", "-i", str(source),
         "-stream_loop", "-1", "-i", str(music_path),
         "-filter_complex", f"{video_filter};[1:a]volume=0.35,afade=t=in:st=0:d=0.10,afade=t=out:st=11.75:d=0.25,alimiter=limit=0.90[a]",
         "-map", "[v]", "-map", "[a]", "-t", "12",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "1",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-threads", "1",
         "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(pending),
     ]
     try:

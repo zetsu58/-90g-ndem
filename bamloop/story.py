@@ -193,7 +193,7 @@ def create_story_video(seed: str, output_dir: str, *, voice_fixture: Path | None
         pending=folder/'pending.mp4'
         subprocess.run(['ffmpeg','-y','-loglevel','error','-filter_complex_threads','1','-filter_threads','1','-i',str(visuals),'-i',str(narration),*bed,
             '-filter_complex','[1:a]apad,volume=1.3,asplit=2[side][main];[2:a]volume=0.18[b];[b][side]sidechaincompress=threshold=0.03:ratio=8:detection=rms[d];[main][d]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[a]',
-            '-map','0:v','-map','[a]','-t','36','-vf','scale=1080:1920:flags=bilinear,format=yuv420p',
+            '-map','0:v','-map','[a]','-t','36','-vf','scale=720:1280:flags=bilinear,format=yuv420p',
             '-c:v','libx264','-preset','ultrafast','-crf','23','-threads','1',
             '-c:a','aac','-b:a','128k','-movflags','+faststart',str(pending)],check=True,timeout=180)
         _validate_short(pending)

@@ -14,6 +14,11 @@ kaynak için ayrı uygulanır; aynı turda iki kaynağın birer Short'u yayınla
 BAMLOOP üretim aralığı `MEME_INTERVAL_SECONDS=10800` kullanır. Kota üst sınırdır;
 haber bulunması, kalite kontrolü ve OAuth başarısı gerçek yayın sayısını belirler.
 
+Free Render profili iki BAMLOOP render türünde de 720×1280 kullanır. Ping-pong
+klipte reverse öncesi kare tamponu 15 fps ile sınırlanır; çıktı 30 fps'dir.
+Decoder/encoder tek thread çalışır. Bu, 1080p reverse tamponunun 512 MiB
+servisi OOM ile yeniden başlatmasını önlemek için uygulanmıştır.
+
 Uzun video üretimi, force-pair komutu ve upload kapısı Shorts politikası tarafından
 engellenir. Kuyruktaki eski uzun videolar dosyaları silinmeden `format_disabled`
 durumuna alınır. Ayrı BAMLOOP servisi `BAMLOOP_STANDALONE_ENABLED=false` ile

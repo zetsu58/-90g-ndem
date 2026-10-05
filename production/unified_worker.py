@@ -19,6 +19,8 @@ def run_bamloop():
     result = {"publish": publish_pending(), "prepare": {"deferred": True}}
     if not pending and (last is None or now - last >= interval):
         try:
+            import gc
+            gc.collect()
             result["prepare"] = prepare()
         except Exception as exc:
             result["prepare"] = {"error": type(exc).__name__}
