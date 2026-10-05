@@ -113,7 +113,7 @@ def publish_pending():
             record_auth('bamloop',channel=channel)
             if ledger:
                 try:
-                    if not ledger.reserve('bamloop',job['content_id']):
+                    if not ledger.reserve('bamloop',job['content_id'], content_format=str(job_metadata.get('content_format') or 'short')):
                         queue.reject(job['content_id'],'Already recorded in publication ledger')
                         return {'uploaded':0,'duplicate':1,**queue.counts()}
                 except LedgerCapacity as exc:

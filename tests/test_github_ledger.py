@@ -42,6 +42,19 @@ class LedgerTests(unittest.TestCase):
         with patch('production.github_ledger.time.time', return_value=now+10800):
             self.assertTrue(self.ledger.reserve('viral_futbol','story-2'))
 
+    def test_short_and_video_limits_are_independent(self):
+        now = datetime(2026,9,20,6,tzinfo=ZoneInfo('Europe/Istanbul')).timestamp()
+        for i in range(5):
+            with patch('production.github_ledger.time.time', return_value=now+i*10800):
+                self.assertTrue(self.ledger.reserve('bamloop', f'short-{i}'))
+        with patch('production.github_ledger.time.time', return_value=now+4*10800):
+            self.assertTrue(self.ledger.reserve('bamloop', 'video-1', content_format='video'))
+        with patch('production.github_ledger.time.time', return_value=now+5*10800):
+            with self.assertRaisesRegex(LedgerCapacity, 'daily'):
+                self.ledger.reserve('bamloop', 'video-2', content_format='video')
+            with self.assertRaisesRegex(LedgerCapacity, 'daily'):
+                self.ledger.reserve('bamloop', 'short-6')
+
     def test_missing_ledger_token_fails_closed(self):
         with patch.dict(os.environ, {'GITHUB_LEDGER_TOKEN': ''}):
             with self.assertRaises(LedgerError): GitHubLedger()

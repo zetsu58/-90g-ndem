@@ -97,19 +97,26 @@ class GitHubLedger:
                     stamp = float(name.split('-', 1)[0])
                 except ValueError:
                     raise LedgerError('Malformed ledger slot; upload stopped') from None
-                entries.append({'at': stamp, 'day': f'{date:%Y-%m-%d}'})
+                format_name = name.split('-', 2)[1] if len(name.split('-', 2)) == 3 else 'short'
+                if format_name not in {'short', 'video'}:
+                    raise LedgerError('Malformed ledger slot format; upload stopped')
+                entries.append({'at': stamp, 'day': f'{date:%Y-%m-%d}', 'content_format': format_name})
         return entries
 
-    def reserve(self, channel: str, content_id: str) -> bool:
+    def reserve(self, channel: str, content_id: str, *, content_format: str = 'short') -> bool:
         if channel not in {'viral_futbol', 'bamloop'}:
             raise LedgerError('Unknown publishing channel')
+        if content_format not in {'short', 'video'}:
+            raise LedgerError('Unknown content format')
         if self.exists(channel, content_id):
             return False
         now = time.time()
         day = self._today(now)
-        slots = self._slots(channel, now)
-        max_daily = max(1, int(os.getenv('MAX_SHORTS_PER_DAY', '5')))
-        spacing = max(0.0, float(os.getenv('MIN_HOURS_BETWEEN_SHORTS', '3'))) * 3600
+        slots = [slot for slot in self._slots(channel, now) if slot['content_format'] == content_format]
+        daily_key = 'MAX_VIDEOS_PER_DAY' if content_format == 'video' else 'MAX_SHORTS_PER_DAY'
+        spacing_key = 'MIN_HOURS_BETWEEN_VIDEOS' if content_format == 'video' else 'MIN_HOURS_BETWEEN_SHORTS'
+        max_daily = max(1, int(os.getenv(daily_key, '1' if content_format == 'video' else '5')))
+        spacing = max(0.0, float(os.getenv(spacing_key, '12' if content_format == 'video' else '3'))) * 3600
         if sum(s['day'] == day for s in slots) >= max_daily:
             next_day = datetime.fromtimestamp(now, self.timezone).replace(hour=0,minute=0,second=0,microsecond=0)
             from datetime import timedelta
@@ -124,7 +131,7 @@ class GitHubLedger:
         self._request('PUT', self._item_path(channel, content_id), payload)
         # Reserve the slot before attempting the external upload. An index write
         # failure leaves the item reserved, preventing replay after restart.
-        marker = f'publish-ledger/{channel}/days/{day}/{now:.3f}-{key}.json'
+        marker = f'publish-ledger/{channel}/days/{day}/{now:.3f}-{content_format}-{key}.json'
         self._request('PUT', marker, payload)
         return True
 
