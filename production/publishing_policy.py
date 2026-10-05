@@ -11,7 +11,11 @@ def shorts_only():
 
 
 def capacity_channel(source):
-    return "viral_futbol" if unified_channel() and source in {"viral_futbol", "bamloop"} else source
+    return "viral_futbol" if unified_channel() and not limits_per_source() and source in {"viral_futbol", "bamloop"} else source
+
+
+def limits_per_source():
+    return os.getenv("PUBLISH_LIMITS_PER_SOURCE", "false").casefold() in {"1", "true", "yes", "on"}
 
 
 def bamloop_env(suffix, default=""):

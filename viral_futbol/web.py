@@ -27,6 +27,18 @@ def _run_cycle() -> None:
         from scripts.run_worker import cycle
         _state["last_result"] = cycle(lambda stage: _state.update({"cycle_stage": stage, "cycle_stage_at": _timestamp()}))
         _state["last_error"] = None
+        # Safe operational evidence is available through Render logs even when
+        # the public HTTP endpoint cannot be reached by an operator.
+        try:
+            status = public_status()
+            fields = ("deploy_commit", "render_count", "upload_count", "queue_size", "last_upload_error_type", "last_uploaded_video_id", "youtube_auth_ready", "youtube_channel_id", "oauth_refresh_error", "next_slots_by_source")
+            summary = {key: status.get(key) for key in fields}
+            summary["configuration"] = {key: status["configuration"].get(key) for key in ("unified_youtube_channel", "shorts_only_mode", "youtube_enabled", "youtube_credentials_ready", "youtube_privacy_status", "youtube_expected_channel_id", "limits_per_source", "shorts_daily_limit_per_source", "min_hours_between_shorts", "github_ledger_ready")}
+            from production.youtube_auth import AUTH_STATUS
+            summary["auth_by_source"] = dict(AUTH_STATUS)
+            print("Unified Shorts production status: " + json.dumps(summary, default=str), flush=True)
+        except Exception as exc:
+            print("Unified Shorts status unavailable: " + type(exc).__name__, flush=True)
     except Exception as exc:
         _state["last_error"] = type(exc).__name__
     finally:
@@ -50,7 +62,7 @@ def start_cycle() -> bool:
 
 
 def public_status() -> dict:
-    from production.publishing_policy import shorts_only, unified_channel
+    from production.publishing_policy import shorts_only, unified_channel, limits_per_source
     from .publishers.x_transport import x_credentials_ready
     from .youtube_publisher import YouTubeConfig
     from production.youtube_auth import AUTH_STATUS
@@ -85,6 +97,8 @@ def public_status() -> dict:
             if unified_channel():
                 publishing['queue_size'] = sum(by_state.get(state, 0) for state in ('queued','failed','uploading','uncertain'))
                 publishing['queue_by_source'] = {row[0]: row[1] for row in queue.db.execute(f"SELECT channel,COUNT(*) FROM publish_queue WHERE {scope} AND upload_state IN ('queued','failed','uploading','uncertain') GROUP BY channel")}
+                with PublishQueue(settings.db_path,'bamloop') as bam_queue:
+                    publishing['next_slots_by_source'] = {'viral_futbol':queue.next_slot(), 'bamloop':bam_queue.next_slot()}
     except Exception:
         publishing = {'queue_size': None, 'videos_today': None, 'next_short_slot': None, 'next_video_slot': None, 'db_persistence_ready': False}
     return {
@@ -111,6 +125,9 @@ def public_status() -> dict:
             "github_ledger_ready": ledger_ready() if ledger_required() else False,
             "autostart_worker": os.getenv("NEWS_AUTOSTART_WORKER", "true").casefold() in {"1", "true", "yes", "on"},
             "unified_youtube_channel": unified_channel(),
+            "limits_per_source": limits_per_source(),
+            "shorts_daily_limit_per_source": int(os.getenv('MAX_SHORTS_PER_DAY','5')),
+            "min_hours_between_shorts": float(os.getenv('MIN_HOURS_BETWEEN_SHORTS','3')),
             "content_sources": ["viral_futbol", "bamloop"] if unified_channel() else ["viral_futbol"],
             "shorts_only_mode": shorts_only(),
             "longform_enabled": not shorts_only() and os.getenv("VIRAL_LONGFORM_ENABLED",os.getenv("LONGFORM_ENABLED","false")).casefold() in {"1","true","yes","on"},

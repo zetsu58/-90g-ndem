@@ -8,7 +8,11 @@ ViralFutbol servisi futbol ve BAMLOOP üreticilerini aynı cycle lock altında s
 kullanır; BAMLOOP'un eski `MEME_YOUTUBE_*` yetkisine geri dönüş yapılmaz.
 Yerel kuyruk aynı `NEWS_DB_PATH` veritabanını, ledger günlük slotları aynı
 `viral_futbol` kanalını paylaşır. Kaynakların item kayıtları tekrar koruması için
-korunur. Günlük 5 Shorts ve en az 3 saat aralık, iki kaynağın toplamına uygulanır.
+korunur. `PUBLISH_LIMITS_PER_SOURCE=true` ile ViralFutbol günde 5, BAMLOOP
+günde 5 Shorts paylaşabilir: toplam üst sınır 10'dur. En az 3 saat aralık her
+kaynak için ayrı uygulanır; aynı turda iki kaynağın birer Short'u yayınlanabilir.
+BAMLOOP üretim aralığı `MEME_INTERVAL_SECONDS=10800` kullanır. Kota üst sınırdır;
+haber bulunması, kalite kontrolü ve OAuth başarısı gerçek yayın sayısını belirler.
 
 Uzun video üretimi, force-pair komutu ve upload kapısı Shorts politikası tarafından
 engellenir. Kuyruktaki eski uzun videolar dosyaları silinmeden `format_disabled`

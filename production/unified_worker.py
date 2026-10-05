@@ -12,7 +12,7 @@ def run_bamloop():
     from production.queue import PublishQueue
     path = db_path()
     now = time.time()
-    interval = max(60, float(os.getenv("MEME_INTERVAL_SECONDS", "14400")))
+    interval = max(60, float(os.getenv("MEME_INTERVAL_SECONDS", "10800")))
     with PublishQueue(path, "bamloop") as queue:
         last = queue.db.execute("SELECT MAX(created_at) FROM publish_queue WHERE channel='bamloop'").fetchone()[0]
         pending = queue.db.execute("SELECT COUNT(*) FROM publish_queue WHERE channel='bamloop' AND upload_state IN ('queued','failed','uploading','uncertain') AND content_type!='video'").fetchone()[0]

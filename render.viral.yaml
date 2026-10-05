@@ -10,8 +10,10 @@ services:
         value: "true"
       - key: SHORTS_ONLY_MODE
         value: "true"
+      - key: PUBLISH_LIMITS_PER_SOURCE
+        value: "true"
       - key: MEME_INTERVAL_SECONDS
-        value: "14400"
+        value: "10800"
       - key: REMOTION_ENABLED
         value: "false"
       - key: REMOTION_TIMEOUT_SECONDS
@@ -122,4 +124,3 @@ services:
         sync: false
       - key: YOUTUBE_EXPECTED_CHANNEL_ID
         sync: false
-
