@@ -47,6 +47,38 @@ def prepare(*, source_url=None, voice_fixture=None):
         ledger=GitHubLedger() if ledger_required() else None
         recent=queue.recent(30)
         from .meme_catalog import reaction_mode, catalog, content_id as reviewed_id
+        from .content_mix import mixed_mode, next_category
+        if mixed_mode():
+            from .original_meme import story_bank, identity, build_original_video
+            from .reaction_meme import build_reaction_video
+            category, sequence = next_category(queue)
+            # Global slots alternate original skits and reviewed clips. Football
+            # slots never silently become unrelated stock footage.
+            reviewed = []
+            if category == 'global' and sequence % 2 == 0:
+                reviewed = [(reviewed_id(clip), clip) for clip in catalog()]
+            originals = [(identity(story), story) for story in story_bank(category)]
+            for content_id, candidate in reviewed + originals:
+                if queue.db.execute('SELECT 1 FROM publish_queue WHERE channel=? AND content_id=?',
+                                    ('bamloop', content_id)).fetchone():
+                    continue
+                if ledger and ledger.exists('bamloop', content_id):
+                    continue
+                output_dir = os.getenv('MEME_OUTPUT_DIR','storage/bamloop')
+                if 'sha256' in candidate:
+                    video, metadata = build_reaction_video(candidate, output_dir)
+                    digest, provider = candidate['sha256'], 'reviewed_clip'
+                else:
+                    video, metadata = build_original_video(candidate, output_dir)
+                    digest, provider = hashlib.sha256(candidate['id'].encode()).hexdigest(), 'original_animation'
+                metadata['meme_category'] = category
+                metadata['growth_lane'] = 'football_meme' if category == 'football' else 'global_meme'
+                _validate_short(video)
+                queued = queue.enqueue(content_id, 'meme', metadata['title'], digest, video, metadata, provider)
+                return {'content_id':content_id, 'content_type':'meme', 'queued':queued,
+                        'video':str(video), 'meme_category':category, 'provider':provider}
+            return {'deferred':True, 'reason':'meme_category_catalog_exhausted',
+                    'meme_category':category, 'original_stories':len(originals)}
         if reaction_mode():
             from .reaction_meme import build_reaction_video
             # A new caption must not recycle the same source clip after restart.

@@ -16,6 +16,8 @@ def test_lite_narration_is_factual_and_branded():
     assert "TRT Spor" not in text
     assert "NTV Spor" not in text
     assert "90+ Gündem" in text
-    assert 70 <= len(text) <= 350
+    assert len(text) <= 350
     assert text.startswith("Galatasaray")
     assert "resmî açıklama" not in text
+    assert "takipte kalın" not in text
+    assert "Gelişmeler geldikçe" not in text

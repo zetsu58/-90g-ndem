@@ -7,7 +7,13 @@ services:
     autoDeploy: true
     envVars:
       - key: BAMLOOP_CONTENT_MODE
-        value: reaction_meme
+        value: mixed_meme
+      - key: BAMLOOP_CATEGORY_PATTERN
+        value: global,football,global,football,global
+      - key: VIRAL_PUBLISH_TIMES
+        value: "09:00,12:00,15:00,18:00,21:00"
+      - key: BAMLOOP_PUBLISH_TIMES
+        value: "10:30,13:30,16:30,19:30,22:30"
       - key: UNIFIED_YOUTUBE_CHANNEL
         value: "true"
       - key: SHORTS_ONLY_MODE

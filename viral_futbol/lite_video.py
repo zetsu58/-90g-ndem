@@ -47,13 +47,13 @@ def build_lite_narration(
     detail = ". ".join(clean_facts[:3])
     if language == "en":
         verified = f" {detail}." if detail else ""
-        return f"Football update: {clean}.{verified} Follow 90 Plus Gundem for the next update."
+        return f"{clean}.{verified} 90 Plus Gundem."
     # Put the news in the first breath. Never pad sparse reports with invented
     # consequences or claims of an official announcement.
     lead = clean if clean.endswith(("?", "!")) else f"{clean}."
     details = [fact for fact in clean_facts if fact.casefold() not in clean.casefold()]
     body = " ".join(f"{fact}." for fact in details[:2])
-    ending = "Gelişmeler geldikçe aktaracağız. 90+ Gündem'de takipte kalın."
+    ending = "90+ Gündem."
     return " ".join(part for part in (lead, body, ending) if part)
 
 
@@ -218,4 +218,3 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     if motion_video: motion_video.unlink(missing_ok=True)
     stage("complete")
     return final_path
-
