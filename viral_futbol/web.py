@@ -69,7 +69,7 @@ def public_status() -> dict:
     settings = Settings()
     youtube = YouTubeConfig.from_env()
     from production.queue import PublishQueue, persistent_render_path, publishing_storage_ready, direct_publish_enabled
-    from production.github_ledger import required as ledger_required, ready as ledger_ready
+    from production.github_ledger import required as ledger_required, ready as ledger_ready, PUBLICATION_AUDIT
     try:
         with PublishQueue(settings.db_path, 'viral_futbol') as queue:
             scope = "channel IN ('viral_futbol','bamloop')" if unified_channel() else "channel='viral_futbol'"
@@ -99,10 +99,14 @@ def public_status() -> dict:
                 publishing['queue_by_source'] = {row[0]: row[1] for row in queue.db.execute(f"SELECT channel,COUNT(*) FROM publish_queue WHERE {scope} AND upload_state IN ('queued','failed','uploading','uncertain') GROUP BY channel")}
                 with PublishQueue(settings.db_path,'bamloop') as bam_queue:
                     publishing['next_slots_by_source'] = {'viral_futbol':queue.next_slot(), 'bamloop':bam_queue.next_slot()}
+                for source, audit in PUBLICATION_AUDIT.items():
+                    if audit.get('next_short_slot'):
+                        publishing['next_slots_by_source'][source] = audit['next_short_slot']
     except Exception:
         publishing = {'queue_size': None, 'videos_today': None, 'next_short_slot': None, 'next_video_slot': None, 'db_persistence_ready': False}
     return {
         **dict(_state), **publishing, **AUTH_STATUS['viral_futbol'],
+        'publishing_audit_by_source': dict(PUBLICATION_AUDIT),
         'deploy_commit': os.getenv('RENDER_GIT_COMMIT') if re.fullmatch(r'[0-9a-f]{40}', os.getenv('RENDER_GIT_COMMIT','')) else None,
         "configuration": {
             "dry_run": settings.dry_run,

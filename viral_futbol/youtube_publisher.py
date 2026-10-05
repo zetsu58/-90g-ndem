@@ -281,6 +281,7 @@ def publish_ready(settings,limit:int=2)->dict:
                     record_auth('viral_futbol',channel=channel)
                     if ledger:
                         try:
+                            result['publishing_audit'] = ledger.audit_capacity('viral_futbol', credentials, channel['id'])
                             if not ledger.reserve('viral_futbol',story_id, content_format=str(upload_metadata.get('content_format') or 'short')):
                                 queue.reject(story_id,'Already recorded in publication ledger')
                                 result['skipped']+=1

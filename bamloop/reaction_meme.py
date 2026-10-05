@@ -46,10 +46,11 @@ def build_reaction_video(clip, output_dir="storage/bamloop", *, local_source=Non
         "title": (clip["title"] + " #Shorts")[:100],
         "description": ("#meme #komik #shorts\n\n"
                         f"Kaynak: {clip['author']} — {clip['source_page']}\n"
-                        f"Kaynak ve bu uyarlama: CC BY-SA 4.0 — {clip['license_url']}\n"
+                        f"Kaynak lisansı: {clip.get('license_name', 'CC BY-SA 4.0')} — {clip['license_url']}\n"
+                        f"BAMLOOP katkıları: {clip.get('adaptation_license_name', clip.get('license_name', 'CC BY-SA 4.0'))} — {clip.get('adaptation_license_url', clip['license_url'])}\n"
                         "Değişiklikler: Türkçe espri, kısa kurgu, tepki yakın planı, tekrar ve özgün ses efektleri.\n"
                         "Üretici bu uyarlamayı destekliyor anlamına gelmez."),
-        "tags": ["meme", "komik", "shorts", "kedi", "tepki"],
+        "tags": clip.get("tags", ["meme", "komik", "shorts", "kedi", "tepki"]),
         "meme_contract": CONTRACT, "clip_id": clip["id"],
         "source_sha256": clip["sha256"], "reviewed_event": clip["reviewed_event"],
         "duration_seconds": total, "content_format": "short",
@@ -82,12 +83,12 @@ def build_reaction_video(clip, output_dir="storage/bamloop", *, local_source=Non
             scratch.append(file)
             file.write_text(text, encoding="utf-8")
             following = f"caption{i}"
-            filters.append(f"[{previous}]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile='{_escape_drawtext_path(file)}':fontcolor=white:fontsize=38:borderw=3:bordercolor=black:box=1:boxcolor=black@0.65:boxborderw=12:x=(w-text_w)/2:y=80:line_spacing=8:enable='gte(t,{start})*lt(t,{end})'[{following}]")
+            filters.append(f"[{previous}]drawtext=expansion=none:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile='{_escape_drawtext_path(file)}':fontcolor=white:fontsize=38:borderw=3:bordercolor=black:box=1:boxcolor=black@0.65:boxborderw=12:x=(w-text_w)/2:y=80:line_spacing=8:enable='gte(t,{start})*lt(t,{end})'[{following}]")
             previous = following
         sound = directory / f"{key}-sound.wav"
         scratch.append(sound)
         _sound(sound, total, clip["punchline_at"], span)
-        if any(s["codec_type"] == "audio" for s in info["streams"]):
+        if clip.get("preserve_source_audio", True) and any(s["codec_type"] == "audio" for s in info["streams"]):
             filters.append(f"[0:a]atrim=duration={span},asetpts=PTS-STARTPTS,apad,atrim=duration={total},volume=0.5[original]")
             filters.append("[original][1:a]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.9[a]")
         else:
