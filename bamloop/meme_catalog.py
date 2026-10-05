@@ -9,7 +9,7 @@ CONTRACT = "reviewed-reaction-meme-v1"
 
 
 def reaction_mode():
-    return os.getenv("BAMLOOP_CONTENT_MODE", "reaction_meme").casefold() == "reaction_meme"
+    return os.getenv("BAMLOOP_CONTENT_MODE", "reaction_meme").casefold() in {"reaction_meme", "mixed_meme"}
 
 
 def catalog():
@@ -31,6 +31,11 @@ def content_id(clip):
 
 def require_reviewed_meme(metadata):
     if not reaction_mode():
+        return
+    from .content_mix import mixed_mode
+    from .original_meme import CONTRACT as ORIGINAL_CONTRACT, validate_metadata
+    if mixed_mode() and metadata.get("meme_contract") == ORIGINAL_CONTRACT:
+        validate_metadata(metadata)
         return
     candidates = {clip["id"]: clip for clip in catalog()}
     clip = candidates.get(metadata.get("clip_id"))

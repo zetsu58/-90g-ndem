@@ -102,6 +102,8 @@ def collect_youtube_performance(db_path: str, limit: int | None = None) -> dict:
                     age_hours=age_hours,
                 )
                 score = performance.record(sample)
+                from production.growth_report import record_snapshot
+                record_snapshot(db_path, sample.story_id, lane='football_news', sample=sample)
                 try:
                     record_story_scene_snapshot(
                         db_path, sample.story_id, age_hours=sample.age_hours,

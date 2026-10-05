@@ -6,6 +6,12 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      - key: BAMLOOP_CONTENT_MODE
+        value: mixed_meme
+      - key: BAMLOOP_CATEGORY_PATTERN
+        value: global,football,global,football,global
+      - key: BAMLOOP_PUBLISH_TIMES
+        value: "10:30,13:30,16:30,19:30,22:30"
       - key: BAMLOOP_STANDALONE_ENABLED
         value: "false"
       - key: SHORTS_ONLY_MODE

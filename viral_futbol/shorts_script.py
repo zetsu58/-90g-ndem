@@ -16,7 +16,7 @@ class ShortsScript:
         return " ".join((self.hook, self.event, self.detail, self.outcome, self.cta)).strip()
 
 
-def build_script_prompt(*, title: str, facts: list[str], team: str = "", target_seconds: int = 40) -> str:
+def build_script_prompt(*, title: str, facts: list[str], team: str = "", target_seconds: int = 18) -> str:
     """Build a narration-first prompt for MoneyPrinterTurbo/OpenRouter.
 
     The model must return plain spoken Turkish because the generated response is
@@ -24,6 +24,9 @@ def build_script_prompt(*, title: str, facts: list[str], team: str = "", target_
     not as JSON fields that could accidentally be read by TTS.
     """
     facts_text = "\n".join(f"- {fact}" for fact in facts if fact.strip())
+    target_seconds = max(12, min(60, int(target_seconds)))
+    event_end = round(target_seconds * .45)
+    detail_end = max(event_end + 1, target_seconds - 3)
     return f"""Sen Viral Futbol için Türkçe YouTube Shorts editörüsün.
 Sadece aşağıdaki haber bilgilerinden yararlan. Tek kaynaklı iddiayı kesinleşmiş gibi sunma. Bilgi uydurma; olmayan alıntı,
 bonservis bedeli, sakatlık, sağlık sonucu veya kesinleşmemiş bir gelişme için
@@ -39,11 +42,11 @@ Yalnızca seslendirilecek metni döndür. JSON, başlık, madde işareti, zaman 
 sahne etiketi, açıklama veya hashtag döndürme.
 
 Akış:
-- İlk 2 saniye: gerçeği bozmayan güçlü bir merak kancası.
-- 2-10 saniye: gelişmeyi açık ve hızlı anlat.
-- 10-30 saniye: en önemli desteklenen ayrıntıları ver.
-- 30-38 saniye: gelişmenin neden önemli olduğunu söyle.
-- Son 2-3 saniye: kısa ve doğal bir yorum sorusu sor.
+- İlk 2 saniye: takım/oyuncu ve en önemli doğru bilgiyi doğrudan söyle.
+- 2-{event_end} saniye: gelişmeyi açık ve hızlı anlat.
+- {event_end}-{detail_end} saniye: tek önemli desteklenen ayrıntıyı ver.
+- {detail_end}-{target_seconds} saniye: kısa sonuç veya özgün değerlendirme.
+- Uzun kapanış, takip çağrısı ve sırf süre dolduran yorum sorusu ekleme.
 
 Kısa cümleler kullan. Kaynak URL'lerini seslendirme. Gereksiz giriş ve selamlama yapma.
 """.strip()

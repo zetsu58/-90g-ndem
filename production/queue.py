@@ -87,6 +87,28 @@ class PublishQueue:
         earliest=max(now,max(occupied,default=0)+spacing)
         if len(occupied)>=max_daily:
             earliest=max(earliest,end)
+        source_key = {'viral_futbol':'VIRAL_PUBLISH_TIMES','bamloop':'BAMLOOP_PUBLISH_TIMES'}.get(self.channel)
+        source_times = os.getenv(source_key, '').strip() if source_key else ''
+        if source_times:
+            slots=[]
+            for value in source_times.split(','):
+                try:
+                    hour, minute = map(int, value.strip().split(':'))
+                except ValueError:
+                    raise ValueError('publish_times_require_HH_MM') from None
+                if not 0 <= hour <= 23 or not 0 <= minute <= 59:
+                    raise ValueError('publish_time_out_of_range')
+                slots.append((hour,minute))
+            zone=ZoneInfo(os.getenv('CHANNEL_TIMEZONE','Europe/Istanbul'))
+            day=datetime.fromtimestamp(earliest,zone).replace(hour=0,minute=0,second=0,microsecond=0)
+            grace=max(0,float(os.getenv('PUBLISH_SLOT_GRACE_MINUTES','30')))*60
+            for offset in range(3):
+                for hour,minute in sorted(set(slots)):
+                    candidate=(day+timedelta(days=offset)).replace(hour=hour,minute=minute).timestamp()
+                    if candidate <= earliest <= candidate+grace:
+                        return earliest
+                    if candidate >= earliest:
+                        return candidate
         if not direct_publish_enabled() and os.getenv('SMART_PUBLISH_SCHEDULING','true').lower() in {'1','true','yes'}:
             slots=[int(x) for x in os.getenv('PUBLISH_HOURS','9,12,15,18,21').split(',') if x.strip().isdigit() and 0<=int(x)<=23]
             if slots:
