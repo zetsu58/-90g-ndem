@@ -279,7 +279,7 @@ def publish_ready(settings,limit:int=2)->dict:
                     record_auth('viral_futbol',channel=channel)
                     if ledger:
                         try:
-                            if not ledger.reserve('viral_futbol',story_id):
+                            if not ledger.reserve('viral_futbol',story_id, content_format=str(upload_metadata.get('content_format') or 'short')):
                                 queue.reject(story_id,'Already recorded in publication ledger')
                                 result['skipped']+=1
                                 result['skip_reasons']['ledger_record_exists'] = result['skip_reasons'].get('ledger_record_exists', 0) + 1
