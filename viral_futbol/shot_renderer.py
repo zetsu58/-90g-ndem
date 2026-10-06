@@ -7,13 +7,13 @@ from pathlib import Path
 
 def _motion_filter(motion: str) -> str:
     motions = {
-        "slow-push": "scale=675:1200,crop=540:960:x='67+19*t':y='120+9*t'",
-        "parallax": "scale=690:1227,crop=540:960:x='75+34*sin(t*0.9)':y='135+21*cos(t*0.7)'",
-        "whip-pan": "scale=705:1254,crop=540:960:x='82+64*sin(t*1.8)':y='147+13*cos(t)'",
-        "micro-zoom": "scale=660:1174,crop=540:960:x='60+13*sin(t)':y='107+13*cos(t)'",
-        "punch-in": "scale=720:1280,crop=540:960:x='90+26*sin(t*1.4)':y='158+22*cos(t)'",
-        "slide": "scale=675:1200,crop=540:960:x='67+41*sin(t*0.65)':y=120",
-        "crop-pan": "scale=690:1227,crop=540:960:x='75+39*sin(t*0.72)':y='135+15*cos(t)'",
+        "slow-push": "scale=900:1600,crop=720:1280:x='67+19*t':y='120+9*t'",
+        "parallax": "scale=920:1636,crop=720:1280:x='75+34*sin(t*0.9)':y='135+21*cos(t*0.7)'",
+        "whip-pan": "scale=940:1672,crop=720:1280:x='82+64*sin(t*1.8)':y='147+13*cos(t)'",
+        "micro-zoom": "scale=880:1566,crop=720:1280:x='60+13*sin(t)':y='107+13*cos(t)'",
+        "punch-in": "scale=960:1707,crop=720:1280:x='90+26*sin(t*1.4)':y='158+22*cos(t)'",
+        "slide": "scale=900:1600,crop=720:1280:x='67+41*sin(t*0.65)':y=120",
+        "crop-pan": "scale=920:1636,crop=720:1280:x='75+39*sin(t*0.72)':y='135+15*cos(t)'",
     }
     return motions.get(motion, motions["slow-push"]) + ",fps=30,format=yuv420p"
 
@@ -26,7 +26,7 @@ def render_shot(image: Path, output: Path, duration: float, motion: str) -> None
         "-loop", "1", "-framerate", "30", "-i", str(image),
         "-t", f"{seconds:.2f}",
         "-vf", visual_filter,
-        "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "21", "-threads", "1",
+        "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-threads", "1",
         "-pix_fmt", "yuv420p", str(output),
     ]
     subprocess.run(command, check=True, timeout=90)
