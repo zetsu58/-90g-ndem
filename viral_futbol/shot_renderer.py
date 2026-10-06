@@ -32,6 +32,24 @@ def render_shot(image: Path, output: Path, duration: float, motion: str) -> None
     subprocess.run(command, check=True, timeout=90)
 
 
+def render_brand_intro(logo: Path, output: Path, duration: float = 0.8) -> None:
+    """Render a lightweight heartbeat-style logo sting without loading Chromium."""
+    seconds = max(0.6, min(1.2, duration))
+    command = [
+        "ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1",
+        "-f", "lavfi", "-i", f"color=c=#050505:s=720x1280:r=30:d={seconds:.2f}",
+        "-loop", "1", "-framerate", "30", "-i", str(logo),
+        "-filter_complex",
+        "[1:v]format=rgba,scale='220+34*sin(2*PI*t/0.28)':'-1':eval=frame[mark];"
+        "[0:v][mark]overlay=(W-w)/2:(H-h)/2:shortest=1,"
+        "fade=t=in:st=0:d=0.08,fade=t=out:st=0.68:d=0.12,format=yuv420p[v]",
+        "-map", "[v]", "-an", "-t", f"{seconds:.2f}",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-threads", "1",
+        "-pix_fmt", "yuv420p", str(output),
+    ]
+    subprocess.run(command, check=True, timeout=60)
+
+
 def stitch_shots(
     shots: list[Path],
     output: Path,
