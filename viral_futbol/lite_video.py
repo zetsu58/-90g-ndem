@@ -159,6 +159,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     timeline = timeline_plan(title, target_duration)
     shot_paths = []
     motion_video = None
+    intro_seconds = 0.0
     if frames:
         stage("shots")
         logo_value = os.getenv("VIRALFUTBOL_LOGO_FILE", "").strip()
@@ -167,6 +168,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
             intro_path = directory / f"{story_id}-brand-intro.mp4"
             render_brand_intro(logo_path, intro_path, 0.8)
             shot_paths.append(intro_path)
+            intro_seconds = 0.8
         for index, shot in enumerate(timeline["shots"]):
             shot_path = directory / f"{story_id}-shot-{index}.mp4"
             render_shot(frames[index % len(frames)], shot_path, float(shot["duration"]), str(shot["motion"]))
@@ -188,7 +190,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     except ValueError:
         music_volume = 0.20
     music_volume = max(0.05, min(0.35, music_volume))
-    mix = f"[1:a]adelay=800|800,volume=1.20,acompressor=threshold=0.14:ratio=2.7:attack=4:release=90,apad,asplit=2[side][voice];[2:a]highpass=f=55,lowpass=f=9000,volume={music_volume}[bed];[bed][side]sidechaincompress=threshold=0.035:ratio=8:attack=12:release=280[ducked];[voice][ducked]amix=inputs=2:duration=first:dropout_transition=1:normalize=0,alimiter=limit=0.94[a]"
+    mix = f"[1:a]adelay={int(intro_seconds * 1000)}|{int(intro_seconds * 1000)},volume=1.20,acompressor=threshold=0.14:ratio=2.7:attack=4:release=90,apad,asplit=2[side][voice];[2:a]highpass=f=55,lowpass=f=9000,volume={music_volume}[bed];[bed][side]sidechaincompress=threshold=0.035:ratio=8:attack=12:release=280[ducked];[voice][ducked]amix=inputs=2:duration=first:dropout_transition=1:normalize=0,alimiter=limit=0.94[a]"
     music_value = os.getenv("SHORTS_MUSIC_FILE", "").strip()
     music_path = Path(music_value) if music_value else None
     if music_path and music_path.is_file():
@@ -201,7 +203,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     if render_remotion(output=pending_path, title=title, caption=narration.split(".")[0], duration=target_duration, kind="football", media=remotion_media, audio=audio_path, music=music_path if music_path and music_path.is_file() else None):
         command = None
     else:
-        command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), *music_input, "-vf", video_filter, "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-t", f"{target_duration:.2f}", "-shortest", "-movflags", "+faststart", str(pending_path)]
+        command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), *music_input, "-vf", video_filter, "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-t", f"{target_duration + intro_seconds:.2f}", "-shortest", "-movflags", "+faststart", str(pending_path)]
     try:
         timeout = max(45, int(os.getenv("LITE_VIDEO_TIMEOUT_SECONDS", "120")))
     except ValueError:
