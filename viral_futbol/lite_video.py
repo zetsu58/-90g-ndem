@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 from .pexels_media import download_pexels_frames
 from .creative_learning import recommended_hook
 from .video_timeline import timeline_plan
-from .shot_renderer import render_shot, stitch_shots
+from .shot_renderer import render_brand_intro, render_shot, stitch_shots
 from .creative_store import remember_creative
 from production.music import instrumental
 from production.remotion_bridge import render as render_remotion
@@ -161,6 +161,12 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     motion_video = None
     if frames:
         stage("shots")
+        logo_value = os.getenv("VIRALFUTBOL_LOGO_FILE", "").strip()
+        logo_path = Path(logo_value).expanduser() if logo_value else Path(__file__).resolve().parents[1] / "assets" / "90gundem-logo-v2.png"
+        if logo_path.is_file():
+            intro_path = directory / f"{story_id}-brand-intro.mp4"
+            render_brand_intro(logo_path, intro_path, 0.8)
+            shot_paths.append(intro_path)
         for index, shot in enumerate(timeline["shots"]):
             shot_path = directory / f"{story_id}-shot-{index}.mp4"
             render_shot(frames[index % len(frames)], shot_path, float(shot["duration"]), str(shot["motion"]))
@@ -174,7 +180,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
         concat_path = None
         video_input = ["-loop", "1", "-framerate", "24", "-i", str(card_path)]
     if motion_video:
-        video_filter = "scale=720:1280:flags=bilinear,eq=contrast=1.04:saturation=1.06,fade=t=in:st=0:d=0.10,fps=30,format=yuv420p"
+        video_filter = "scale=1080:1920:flags=lanczos,eq=contrast=1.04:saturation=1.06,fade=t=in:st=0:d=0.10,fps=30,format=yuv420p"
     else:
         video_filter = "scale=1350:2400:flags=lanczos,crop=1080:1920:x='135+82*sin(t*0.82)+27*sin(t*2.1)':y='240+105*cos(t*0.61)+24*sin(t*1.7)',eq=contrast=1.06:saturation=1.08,fade=t=in:st=0:d=0.10,fps=30,format=yuv420p"
     try:
@@ -182,7 +188,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     except ValueError:
         music_volume = 0.20
     music_volume = max(0.05, min(0.35, music_volume))
-    mix = f"[1:a]volume=1.20,acompressor=threshold=0.14:ratio=2.7:attack=4:release=90,apad,asplit=2[side][voice];[2:a]highpass=f=55,lowpass=f=9000,volume={music_volume}[bed];[bed][side]sidechaincompress=threshold=0.035:ratio=8:attack=12:release=280[ducked];[voice][ducked]amix=inputs=2:duration=first:dropout_transition=1:normalize=0,alimiter=limit=0.94[a]"
+    mix = f"[1:a]adelay=800|800,volume=1.20,acompressor=threshold=0.14:ratio=2.7:attack=4:release=90,apad,asplit=2[side][voice];[2:a]highpass=f=55,lowpass=f=9000,volume={music_volume}[bed];[bed][side]sidechaincompress=threshold=0.035:ratio=8:attack=12:release=280[ducked];[voice][ducked]amix=inputs=2:duration=first:dropout_transition=1:normalize=0,alimiter=limit=0.94[a]"
     music_value = os.getenv("SHORTS_MUSIC_FILE", "").strip()
     music_path = Path(music_value) if music_value else None
     if music_path and music_path.is_file():
@@ -195,7 +201,7 @@ def render_lite_video(*, story_id: str, title: str, sources: list[str], facts: l
     if render_remotion(output=pending_path, title=title, caption=narration.split(".")[0], duration=target_duration, kind="football", media=remotion_media, audio=audio_path, music=music_path if music_path and music_path.is_file() else None):
         command = None
     else:
-        command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), *music_input, "-vf", video_filter, "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-t", f"{target_duration:.2f}", "-shortest", "-movflags", "+faststart", str(pending_path)]
+        command = ["ffmpeg", "-y", "-loglevel", "error", "-filter_threads", "1", *video_input, "-i", str(audio_path), *music_input, "-vf", video_filter, "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-threads", "1", "-filter_complex", mix, "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-t", f"{target_duration:.2f}", "-shortest", "-movflags", "+faststart", str(pending_path)]
     try:
         timeout = max(45, int(os.getenv("LITE_VIDEO_TIMEOUT_SECONDS", "120")))
     except ValueError:
