@@ -24,13 +24,11 @@ stok/story kuyruk işleri dosyaları silinmeden `quality_blocked` durumuna alın
 Kaynak içeriği değişirse yeniden inceleme yapılmadan render edilmez.
 Free Render çıktısı 720×1280, 30 fps; decoder/encoder tek thread çalışır ve
 reverse kare tamponu kullanılmaz. Lisans ve uyarlama bilgisi YouTube açıklamasındadır.
-İncelenmiş gerçek meme klipleri önce yayınlanır. Bu havuz tükendiğinde
-`BAMLOOP_SIMULATION_ENABLED=true` olan birleşik worker, özgün araç fiziği
-simülasyonlarını Shorts olarak üretir. İlk seri üç aracın aynı hız tümseği
-üzerindeki temsili süspansiyon hareketini karşılaştırır; 12 küratörlü hız/engel
-senaryosu vardır. Her senaryo bir kez yayınlanır ve yayın geçmişi ledger ile
-korunur. Bu videolar gerçek araç testi veya oyun görüntüsü olarak sunulmaz.
-Her iki havuz biterse `simulation_catalog_exhausted` ile beklenir.
+İncelenmiş gerçek meme klipleri yayınlanır. Çizim tabanlı araç simülasyonu
+prototipi kanalın görsel beklentisini karşılamadığı için production'da
+`BAMLOOP_SIMULATION_ENABLED=false` olarak kapalıdır. Herhangi bir yeni üretim
+formatı, örnek video kalite incelemesinden sonra ayrıca etkinleştirilmelidir.
+Katalog biterse `reviewed_meme_catalog_exhausted` ile beklenir.
 
 Uzun video üretimi, force-pair komutu ve upload kapısı Shorts politikası tarafından
 engellenir. Kuyruktaki eski uzun videolar dosyaları silinmeden `format_disabled`
