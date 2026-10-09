@@ -19,6 +19,17 @@ görüntüde gerçekten gerçekleşen komik olay, tepki yakın planı, özgün s
 ve kısa tekrar. Rastgele Pexels aramasının ilk sonucu ve ileri–geri döngü bu
 modda kullanılmaz; AI hikâyeye otomatik geçiş yapılmaz. İncelenmiş olay zamanları,
 kaynak SHA-256 ve lisans/atıf `bamloop/meme_clips.json` içinde kayıtlıdır.
+
+### Marka/ürün mikro skeçleri (inceleme aşaması)
+
+Üç yeni referans ve ayrı fikir başlıkları `bamloop/brand_sketch.py` içindedir:
+eski telefon ile yeni telefonun karşılaşması, eski telefonun son sözü ve bir
+içecek markasının otomobil fikri. Bunlar başka bir üreticinin görüntüsünü
+kopyalamak için kaynak değildir. Altı saniyelik özgün görsel taslak, iki dikey
+ana kareyle `python -m bamloop.brand_sketch SETUP.png PUNCHLINE.png taslak.mp4`
+komutundan üretilebilir. `review_only` manifesti taslağı yayın kuyruğundan ayrı
+tutar. Gerçek karakter hareketi, ses ve son kurgu incelenmeden bu içerik türü
+otomatik yayınlanmaz. Önceki basit araç simülasyonu kapalıdır.
 Yeni klip eklenmeden önce olayın tamamı görsel olarak incelenmelidir; eski
 stok/story kuyruk işleri dosyaları silinmeden `quality_blocked` durumuna alınır.
 Kaynak içeriği değişirse yeniden inceleme yapılmadan render edilmez.
