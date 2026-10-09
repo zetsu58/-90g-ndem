@@ -1,4 +1,4 @@
-"""Review-only micro-sketchs inspired by short product/brand comedy beats.
+"""Review-only micro-sketches inspired by short product/brand comedy beats.
 
 The reference Shorts identify topics, not footage to reuse. This module can
 make an animatic from original keyframes; it does not enqueue or upload it.
@@ -25,13 +25,18 @@ REFERENCES = (
 )
 
 
-def render_animatic(first: Path, punchline: Path, output: Path) -> dict:
+def render_animatic(first: Path, punchline: Path, output: Path,
+                    concept_id: str = "old_phone_surprise") -> dict:
     """Render a six-second *preview* with original keyframes and visible motion.
 
     This output is deliberately marked as review-only in the manifest. Still
     frames with a camera move are not a finished animated sketch.
     """
     from PIL import Image
+
+    concepts = {item["id"]: item for item in REFERENCES}
+    if concept_id not in concepts:
+        raise ValueError("Unknown brand-sketch concept")
 
     for path in (first, punchline):
         if not path.is_file():
@@ -58,7 +63,8 @@ def render_animatic(first: Path, punchline: Path, output: Path) -> dict:
                "-movflags", "+faststart", str(output)]
     subprocess.run(command, check=True)
     manifest = {"status": "review_only", "content_type": "brand_sketch_animatic",
-                "published": False, "reference_ids": [item["id"] for item in REFERENCES],
+                "published": False, "concept_id": concept_id,
+                "reference_url": concepts[concept_id]["reference"],
                 "video": str(output), "keyframes": [str(first), str(punchline)],
                 "quality_note": "Keyframe animatic; moving character animation and sound are still required."}
     output.with_suffix(".json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -70,5 +76,8 @@ if __name__ == "__main__":
     parser.add_argument("first", type=Path)
     parser.add_argument("punchline", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--concept", choices=[item["id"] for item in REFERENCES],
+                        default="old_phone_surprise")
     args = parser.parse_args()
-    print(json.dumps(render_animatic(args.first, args.punchline, args.output), ensure_ascii=False))
+    print(json.dumps(render_animatic(args.first, args.punchline, args.output,
+                                     concept_id=args.concept), ensure_ascii=False))
