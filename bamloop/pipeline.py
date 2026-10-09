@@ -60,6 +60,20 @@ def prepare(*, source_url=None, voice_fixture=None):
                 queued = queue.enqueue(content_id, 'meme', clip['title'], clip['sha256'], video, metadata, 'reviewed_clip')
                 return {'content_id':content_id, 'content_type':'meme', 'queued':queued,
                         'video':str(video), 'meme_contract':metadata['meme_contract'], 'clip_id':clip['id']}
+            if os.getenv('BAMLOOP_SIMULATION_ENABLED', 'false').casefold() in {'1', 'true', 'yes', 'on'}:
+                from .simulation import SCENARIOS, build_simulation_video, scenario_id
+                for scenario in SCENARIOS:
+                    content_id = scenario_id(scenario)
+                    if any(row['content_id'] == content_id for row in recent):
+                        continue
+                    if ledger and ledger.exists('bamloop', content_id):
+                        continue
+                    video, metadata = build_simulation_video(scenario, os.getenv('MEME_OUTPUT_DIR','storage/bamloop'))
+                    queued = queue.enqueue(content_id, 'meme', metadata['title'], metadata['simulation_signature'],
+                                           video, metadata, 'original_simulation')
+                    return {'content_id':content_id, 'content_type':'simulation', 'queued':queued,
+                            'video':str(video), 'simulation_id':scenario['id']}
+                return {'deferred':True, 'reason':'simulation_catalog_exhausted', 'simulation_count':len(SCENARIOS)}
             return {'deferred':True, 'reason':'reviewed_meme_catalog_exhausted', 'reviewed_clips':len(catalog())}
         kind=select_type(recent)
         # Meme clips require a licensed source. Keep producing original stories
@@ -209,3 +223,4 @@ def cycle():
     except Exception as exc: result['prepare']={'error':type(exc).__name__}
     result['publish_after_prepare']=publish_pending()
     return result
+

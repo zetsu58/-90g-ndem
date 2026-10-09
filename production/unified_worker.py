@@ -18,7 +18,7 @@ def run_bamloop():
         quarantine_legacy(queue)
         last = queue.db.execute("SELECT MAX(created_at) FROM publish_queue WHERE channel='bamloop'").fetchone()[0]
         pending = queue.db.execute("SELECT COUNT(*) FROM publish_queue WHERE channel='bamloop' AND upload_state IN ('queued','failed','uploading','uncertain') AND content_type!='video'").fetchone()[0]
-    result = {"publish": publish_pending(), "prepare": {"deferred": True}}
+    result = {"publish": publish_pending(), "prepare": {"deferred": True, "reason": "pending_queue" if pending else "generation_interval"}}
     if not pending and (last is None or now - last >= interval):
         try:
             import gc
@@ -27,4 +27,9 @@ def run_bamloop():
         except Exception as exc:
             result["prepare"] = {"error": type(exc).__name__}
         result["publish_after_prepare"] = publish_pending()
+    print("BAMLOOP cycle: " + str({key: {field: value for field, value in (part or {}).items()
+                                    if field in {'queued', 'uploaded', 'video_id', 'reason', 'error', 'scheduled',
+                                                 'ready', 'quality_blocked', 'ledger_blocked', 'upload_error_type'}}
+                                    for key, part in result.items()}), flush=True)
     return result
+

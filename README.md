@@ -24,10 +24,13 @@ stok/story kuyruk işleri dosyaları silinmeden `quality_blocked` durumuna alın
 Kaynak içeriği değişirse yeniden inceleme yapılmadan render edilmez.
 Free Render çıktısı 720×1280, 30 fps; decoder/encoder tek thread çalışır ve
 reverse kare tamponu kullanılmaz. Lisans ve uyarlama bilgisi YouTube açıklamasındadır.
-İlk katalog kapı açan kedi klibinden oluşur. Aynı kaynak bir kez yayınlanır;
-katalog biterse `reviewed_meme_catalog_exhausted` ile beklenir. Günlük 5 BAMLOOP
-hedefi için havuzun yeni, incelenmiş komik kliplerle düzenli genişletilmesi gerekir;
-kota doldurmak için stok video veya aynı klip tekrar yayınlanmaz.
+İncelenmiş gerçek meme klipleri önce yayınlanır. Bu havuz tükendiğinde
+`BAMLOOP_SIMULATION_ENABLED=true` olan birleşik worker, özgün araç fiziği
+simülasyonlarını Shorts olarak üretir. İlk seri üç aracın aynı hız tümseği
+üzerindeki temsili süspansiyon hareketini karşılaştırır; 12 küratörlü hız/engel
+senaryosu vardır. Her senaryo bir kez yayınlanır ve yayın geçmişi ledger ile
+korunur. Bu videolar gerçek araç testi veya oyun görüntüsü olarak sunulmaz.
+Her iki havuz biterse `simulation_catalog_exhausted` ile beklenir.
 
 Uzun video üretimi, force-pair komutu ve upload kapısı Shorts politikası tarafından
 engellenir. Kuyruktaki eski uzun videolar dosyaları silinmeden `format_disabled`
@@ -431,3 +434,4 @@ LONGFORM_LLM_API_KEY=
 ```
 
 Bu değerler yoksa long-form sistemi doğrulanmış olgulardan deterministic grounded fallback narration üretir; LLM bağlantısının olmaması worker'ı durdurmaz. Feature flag varsayılan olarak kapalıdır; ilk production smoke/QC sonrası kanal bazında açılmalıdır.
+
